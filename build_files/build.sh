@@ -126,21 +126,26 @@ dnf5 install -y --skip-unavailable --setopt=tsflags=noscripts \
     proton-vpn-gnome-desktop
 systemctl enable me.proton.vpn.split_tunneling.service
 
-# kernel-headers/dkms and snapd (classic-confinement snaps) are deliberately
-# NOT ported here yet - see the laptop bootc migration plan
-# (~/.claude/plans/what-are-folk-using-zazzy-diffie.md, Step 2B) for why both
-# need VM verification before being trusted on an ostree/bootc image rather
-# than a traditional Fedora Workstation install:
-#   - dkms needs out-of-tree kernel modules rebuilt against the exact
-#     deployed kernel, which is a different problem on an image-based system
-#     than on a regular mutable install (Bluefin/ublue handle their own
-#     akmods this way already - follow that pattern if a dkms module is
-#     actually needed here, don't just dnf5 install dkms and hope).
-#   - classic-confinement snapd support on ostree-based Fedora has a history
-#     of friction (the /snap symlink hack in the old Ansible repo is
-#     evidence of that). Test snapd + the actual snap list
-#     (zotero-snap, signal-desktop, vivaldi, libation, hugo, obsidian,
-#     ghostty, plex-desktop) in the VM build before adding it here.
+# kernel-headers/dkms are deliberately NOT ported here yet - see the laptop
+# bootc migration plan (~/.claude/plans/what-are-folk-using-zazzy-diffie.md,
+# Step 2B): dkms needs out-of-tree kernel modules rebuilt against the exact
+# deployed kernel, which is a different problem on an image-based system
+# than on a regular mutable install (Bluefin/ublue handle their own akmods
+# this way already - follow that pattern if a dkms module is actually
+# needed here, don't just dnf5 install dkms and hope).
+
+# snapd (classic-confinement snaps): VM-verified 2026-09-15 that snapd
+# itself wasn't installed in the image at all, hence no /var/lib/snapd, no
+# /snap, no /snap/bin on PATH. Resolves fine from Fedora's own repo (not
+# negativo17). The /snap symlink is the same manual step the old Ansible
+# task needed (tasks/packages.yml) - Fedora's snapd package doesn't create
+# it automatically. Still unverified: whether the actual snap list
+# (zotero-snap, signal-desktop, vivaldi, libation, hugo from the extended
+# channel, and the classic ones - obsidian, ghostty, plex-desktop) installs
+# and runs correctly on this ostree base - test that in the next VM build.
+dnf5 install -y --skip-unavailable snapd
+ln -sf /var/lib/snapd/snap /snap
+systemctl enable snapd.socket
 
 # Proton Mail Bridge - install the latest release asset directly (same
 # approach as the old Ansible task: look up the current release, install
