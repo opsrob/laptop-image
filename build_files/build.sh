@@ -32,13 +32,32 @@ rpm --import https://proton.me/download/bridge/bridge_pubkey.gpg
 # *entire* transaction if any requested package is already installed -
 # skip-unavailable makes it tolerate that instead of aborting everything.
 #
-# libva-intel-driver (legacy i965 VAAPI) dropped: it doesn't exist under
-# that name on Bluefin's negativo17-based repo set (build failure: "No
-# match for argument"). Bluefin/Bazzite's own images are built for
-# hardware-accelerated video out of the box - verify Intel VAAPI actually
-# works in the VM test (Step 4 of the migration plan) before assuming
-# anything needs to be added back for it.
+# libva-intel-driver (the legacy "i965" VAAPI driver, RPM Fusion's
+# packaging of intel/intel-vaapi-driver) intentionally dropped, not just
+# renamed: this laptop is a Framework 12th Gen Intel (Alder Lake, Iris Xe
+# graphics), and i965 only really targets Gen4-Gen7 hardware - Intel
+# deprecated it in favor of the iHD driver for Broadwell/Gen8+. Per rob:
+# it was likely leftover from past troubleshooting, not something that
+# was actually needed on this hardware. It also doesn't exist under that
+# name on Bluefin's negativo17-based repo set anyway (build failure: "No
+# match for argument").
+#
+# The correct modern driver for this hardware is the iHD one, packaged on
+# Fedora/RPM Fusion as libva-intel-media-driver (upstream/other distros
+# call it "intel-media-driver" - that exact name doesn't exist on
+# Fedora). Included below; --skip-unavailable means this is a no-op if
+# Bluefin's own build already provides equivalent hardware video
+# acceleration, which is plausible for a media/gaming-focused image -
+# confirm which is true in the VM test (Step 4 of the migration plan) via
+# `vainfo`.
+#
+# --skip-unavailable (applies to the whole list below): Bluefin already
+# ships several of these (and pulls more in transitively via
+# @development-tools), and dnf5 hard-fails the *entire* transaction if
+# any requested package is already installed - skip-unavailable makes it
+# tolerate that instead of aborting everything.
 dnf5 install -y --skip-unavailable \
+    libva-intel-media-driver \
     thunderbird \
     pykickstart \
     '@development-tools' \
