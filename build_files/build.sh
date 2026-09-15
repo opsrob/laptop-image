@@ -61,7 +61,6 @@ dnf5 install -y --skip-unavailable \
     thunderbird \
     pykickstart \
     '@development-tools' \
-    proton-vpn-gnome-desktop \
     python3-pip \
     python3-psutil \
     code \
@@ -112,6 +111,20 @@ dnf5 install -y --skip-unavailable \
     google-chrome-stable \
     chezmoi \
     age
+
+# proton-vpn-gnome-desktop pulls in proton-vpn-daemon, whose %posttrans
+# scriptlet tries to reach a live D-Bus system bus (only after already
+# successfully creating its systemd unit symlink) - there's no bus in a
+# container build, so it exits non-zero. RPM itself calls this
+# "Non-critical" and keeps going, but dnf5 treats it as fatal to the
+# *whole* transaction regardless (confirmed: build failed here after
+# successfully installing 788/789 other packages). Install this one
+# separately with scripts disabled, then redo the one thing its %post
+# actually needed to accomplish (the unit enable, which had already
+# succeeded before the scriptlet died) explicitly.
+dnf5 install -y --skip-unavailable --setopt=tsflags=noscripts \
+    proton-vpn-gnome-desktop
+systemctl enable me.proton.vpn.split_tunneling.service
 
 # kernel-headers/dkms and snapd (classic-confinement snaps) are deliberately
 # NOT ported here yet - see the laptop bootc migration plan
