@@ -8,8 +8,12 @@ cp -avf "/ctx/system_files"/. /
 
 ### Repo/key setup not covered by a plain .repo file in system_files/
 
-# RPM Fusion free/nonfree ship by default on ublue main images (per Bluefin's
-# own build) - do not re-add it here.
+# Bluefin uses the "negativo17" multimedia repo for codecs/drivers rather
+# than RPM Fusion (confirmed from the actual build log - RPM Fusion is not
+# among the repos this base image has enabled), unlike Bazzite/Aurora which
+# is what the template's boilerplate comment above assumed. Don't add RPM
+# Fusion here on the assumption its packages are needed - check what
+# negativo17 already provides before adding anything from it explicitly.
 
 # ProtonVPN publishes its repo config via a release RPM rather than a plain
 # .repo file; --nogpgcheck matches the original Ansible task, which also
@@ -23,7 +27,18 @@ rpm --import https://proton.me/download/bridge/bridge_pubkey.gpg
 
 ### Install packages
 
-dnf5 install -y \
+# --skip-unavailable: Bluefin already ships several of these (and pulls
+# more in transitively via @development-tools), and dnf5 hard-fails the
+# *entire* transaction if any requested package is already installed -
+# skip-unavailable makes it tolerate that instead of aborting everything.
+#
+# libva-intel-driver (legacy i965 VAAPI) dropped: it doesn't exist under
+# that name on Bluefin's negativo17-based repo set (build failure: "No
+# match for argument"). Bluefin/Bazzite's own images are built for
+# hardware-accelerated video out of the box - verify Intel VAAPI actually
+# works in the VM test (Step 4 of the migration plan) before assuming
+# anything needs to be added back for it.
+dnf5 install -y --skip-unavailable \
     thunderbird \
     pykickstart \
     '@development-tools' \
@@ -35,7 +50,6 @@ dnf5 install -y \
     1password \
     dnf-plugins-core \
     terraform \
-    libva-intel-driver \
     inxi \
     lshw \
     xrandr \
