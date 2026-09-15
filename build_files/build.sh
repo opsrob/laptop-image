@@ -152,8 +152,17 @@ PROTON_BRIDGE_URL=$(curl -fsSL https://api.github.com/repos/ProtonMail/proton-br
 dnf5 install -y "${PROTON_BRIDGE_URL}"
 
 # IDrive desktop app (per project notes, IDrive is managed via this desktop
-# app now, not the old CLI/idrivecron setup)
-dnf5 install -y --nogpgcheck 'https://www.idrivedownloads.com/downloads/linux/linux-desktop/IDriveForLinux.rpm'
+# app now, not the old CLI/idrivecron setup). Same class of problem as
+# proton-vpn-daemon above: its %post scriptlet does `mkdir /home` while
+# installing file-manager icon integration, assuming /home is a plain
+# missing directory - on this ostree-based image /home is a symlink (to
+# /var/home), so mkdir fails ("File exists") and dnf5 aborts the whole
+# transaction over what RPM itself calls a non-critical, purely cosmetic
+# failure (the log confirms it wasn't even going to do anything: "Dolphin
+# file manager not detected. Skipping plugin installation"). noscripts
+# sidesteps it; nothing here needs redoing manually, unlike proton-vpn.
+dnf5 install -y --nogpgcheck --setopt=tsflags=noscripts \
+    'https://www.idrivedownloads.com/downloads/linux/linux-desktop/IDriveForLinux.rpm'
 
 # Zoom and Ente Photos both ship as self-contained, unsigned release RPMs
 # rather than through any yum repo - a bare `dnf5 install -y zoom`/`ente`
@@ -162,13 +171,24 @@ dnf5 install -y --nogpgcheck 'https://www.idrivedownloads.com/downloads/linux/li
 # laptop from a one-off manual install `dnf install <downloaded-rpm>`,
 # which the old Ansible task's `state: present` silently no-op'd on ever
 # since instead of actually being able to reinstall from scratch).
-dnf5 install -y --nogpgcheck 'https://zoom.us/client/latest/zoom_x86_64.rpm'
+#
+# noscripts applied preemptively on both: two other vendor desktop-app
+# RPMs installed this way (proton-vpn-daemon, idriveforlinux) already hit
+# the exact same failure class - a %post/%posttrans scriptlet assuming a
+# live desktop/systemd environment (desktop database/icon cache updates,
+# D-Bus calls) that doesn't exist in a container build, which RPM itself
+# treats as non-critical but dnf5 treats as fatal to the whole
+# transaction. If either actually needs a real postinstall step, this VM
+# test (Step 4 of the migration plan) will surface it as a missing
+# icon/mime association, not a build failure to debug blind.
+dnf5 install -y --nogpgcheck --setopt=tsflags=noscripts \
+    'https://zoom.us/client/latest/zoom_x86_64.rpm'
 
 ENTE_URL=$(curl -fsSL https://api.github.com/repos/ente/photos-desktop/releases/latest \
     | grep -o '"browser_download_url": *"[^"]*x86_64\.rpm"' \
     | head -1 \
     | cut -d'"' -f4)
-dnf5 install -y --nogpgcheck "${ENTE_URL}"
+dnf5 install -y --nogpgcheck --setopt=tsflags=noscripts "${ENTE_URL}"
 
 ### pip / npm installs
 
