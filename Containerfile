@@ -23,8 +23,12 @@ FROM ghcr.io/ublue-os/bluefin:stable@sha256:71a328c539a63bd8ff3aab0c5dcb047d094d
 ##
 ## Uncomment the following line if one desires to make /opt immutable and be able to be used
 ## by the package manager.
+##
+## Needed here: build failed with "mkdir failed - File exists" unpacking
+## google-chrome-stable and 1password specifically - the two packages this
+## comment names as examples.
 
-# RUN rm /opt && mkdir /opt
+RUN rm /opt && mkdir /opt
 
 ### MODIFICATIONS
 ## make modifications desired in your image and install packages by modifying the build.sh script
