@@ -192,8 +192,11 @@ dnf5 install -y --nogpgcheck --setopt=tsflags=noscripts "${ENTE_URL}"
 
 ### pip / npm installs
 
-# Fedora's system pip refuses unmanaged installs (PEP 668) without this flag
-pip install --break-system-packages 'dnspython>=1.16.0' virtualenv
+# --prefix=/usr avoids /usr/local (no pre-existing /usr/local/lib on this
+# image, and pip doesn't create it - "No such file or directory" without
+# this). --break-system-packages: Fedora's system pip otherwise refuses
+# unmanaged installs (PEP 668).
+pip install --break-system-packages --prefix=/usr 'dnspython>=1.16.0' virtualenv
 npm install -g aws-cdk
 
 ### tflint (no packaged RPM - official install script, same as the old
