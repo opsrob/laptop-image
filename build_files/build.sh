@@ -205,11 +205,19 @@ pip install --break-system-packages --prefix=/usr 'dnspython>=1.16.0' virtualenv
 # npm: "ENOTDIR: not a directory, mkdir '/usr/local'" without --prefix=/usr.
 npm install -g --prefix=/usr aws-cdk
 
-### tflint (no packaged RPM - official install script, same as the old
-### Ansible task). /usr/local/bin hits the same build-time-unusable
-### /usr/local problem as pip/npm above - use /usr/bin instead.
-TFLINT_INSTALL_PATH=/usr/bin \
-    bash -c "$(curl -fsSL https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh)"
+### tflint - the old Ansible task's install script
+### (raw.githubusercontent.com/.../install_linux.sh) 404s now, upstream
+### removed it; confirmed via `curl -fsSL` (which silently no-ops on a
+### 404 rather than erroring the build - that's why the previous version
+### of this line "succeeded" without actually installing anything).
+### Download the release zip directly instead, same pattern as Proton
+### Bridge/zoom/ente above.
+TFLINT_URL=$(curl -fsSL https://api.github.com/repos/terraform-linters/tflint/releases/latest \
+    | grep -o '"browser_download_url": *"[^"]*tflint_linux_amd64\.zip"' \
+    | cut -d'"' -f4)
+curl -fsSL -o /tmp/tflint.zip "${TFLINT_URL}"
+unzip -o /tmp/tflint.zip -d /usr/bin tflint
+rm /tmp/tflint.zip
 
 ### Plymouth theme
 plymouth-set-default-theme details -R
