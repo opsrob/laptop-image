@@ -239,13 +239,19 @@ rm -rf /tmp/awscliv2.zip /tmp/aws
 ### OpenTofu - installs via the official script's --install-method rpm,
 ### which drops a yum repo and dnf-installs the `tofu` package (goes
 ### through the normal package manager, so no /usr/local-style path
-### problem like aws-cli above). The old Ansible task had to patch a wrong
-### sslcacert path in the resulting repo file on Fedora - deliberately NOT
-### porting that workaround here unverified (per the migration plan): add
-### it back only if the next build/VM test actually reproduces the bug in
-### this environment.
+### problem like aws-cli above).
 curl -fsSL https://get.opentofu.org/install-opentofu.sh \
     | sh -s -- --install-method rpm
+
+### VM-verified 2026-09-15: the sslcacert bug the old Ansible task worked
+### around does reproduce here - the repo file points at
+### /etc/pki/tls/certs/ca-bundle.crt, which doesn't exist/work on Fedora,
+### breaking dnf5 metadata refresh ("Problem with the SSL CA cert"). Both
+### [opentofu] and [opentofu-source] sections need the same corrected
+### value, so a plain sed (which touches every matching line) works fine
+### here - unlike the old lineinfile task, which only rewrote the last
+### match and needed ini_file to handle both sections independently.
+sed -i 's#^sslcacert=.*#sslcacert=/etc/ssl/certs/ca-bundle.crt#' /etc/yum.repos.d/opentofu.repo
 
 ### Plymouth theme
 plymouth-set-default-theme details -R
