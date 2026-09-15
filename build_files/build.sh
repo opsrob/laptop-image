@@ -192,16 +192,23 @@ dnf5 install -y --nogpgcheck --setopt=tsflags=noscripts "${ENTE_URL}"
 
 ### pip / npm installs
 
-# --prefix=/usr avoids /usr/local (no pre-existing /usr/local/lib on this
-# image, and pip doesn't create it - "No such file or directory" without
-# this). --break-system-packages: Fedora's system pip otherwise refuses
-# unmanaged installs (PEP 668).
+# /usr/local isn't usable at build time on this image (almost certainly
+# symlinked into /var for runtime mutability, which doesn't exist yet
+# mid-build) - both tools default there and need pointing at /usr
+# instead.
+#
+# pip: "OSError: No such file or directory: '/usr/local/lib'" without
+# --prefix=/usr. --break-system-packages: Fedora's system pip otherwise
+# refuses unmanaged installs (PEP 668).
 pip install --break-system-packages --prefix=/usr 'dnspython>=1.16.0' virtualenv
-npm install -g aws-cdk
+
+# npm: "ENOTDIR: not a directory, mkdir '/usr/local'" without --prefix=/usr.
+npm install -g --prefix=/usr aws-cdk
 
 ### tflint (no packaged RPM - official install script, same as the old
-### Ansible task)
-TFLINT_INSTALL_PATH=/usr/local/bin \
+### Ansible task). /usr/local/bin hits the same build-time-unusable
+### /usr/local problem as pip/npm above - use /usr/bin instead.
+TFLINT_INSTALL_PATH=/usr/bin \
     bash -c "$(curl -fsSL https://raw.githubusercontent.com/terraform-linters/tflint/master/install_linux.sh)"
 
 ### Plymouth theme
