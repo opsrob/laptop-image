@@ -1,0 +1,13 @@
+# Hardware-specific kernel args carried over from the previous Ansible
+# `grubby --update-kernel=ALL --args=...` tasks:
+#   nvme.noacpi=1           - improves power saving for NVMe drives
+#   i915.enable_psr=0       - works around a Fedora/i915 freezing issue
+#   module_blacklist=hid_sensor_hub - fixes screen brightness buttons
+#
+# Verify all three actually land after first boot: cat /proc/cmdline
+kargs = [
+    "nvme.noacpi=1",
+    "i915.enable_psr=0",
+    "module_blacklist=hid_sensor_hub",
+]
+match-architectures = ["x86_64"]
