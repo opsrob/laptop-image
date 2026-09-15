@@ -224,6 +224,29 @@ curl -fsSL -o /tmp/tflint.zip "${TFLINT_URL}"
 unzip -o /tmp/tflint.zip -d /usr/bin tflint
 rm /tmp/tflint.zip
 
+### aws-cli - the old Ansible task's `install.sh | bash -s -- --system`
+### only supports two install modes: --system (hardcoded to
+### /usr/local/aws-cli + /usr/local/bin, unusable at build time, same class
+### of problem pip/npm hit above) or a user-local XDG install (also wrong -
+### no real $HOME at build time). Neither works here. Use the zip-based
+### installer directly instead, which accepts explicit --install-dir/
+### --bin-dir, redirected to /usr like the pip/npm fixes above.
+curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip
+unzip -q /tmp/awscliv2.zip -d /tmp
+/tmp/aws/install --install-dir /usr/aws-cli --bin-dir /usr/bin
+rm -rf /tmp/awscliv2.zip /tmp/aws
+
+### OpenTofu - installs via the official script's --install-method rpm,
+### which drops a yum repo and dnf-installs the `tofu` package (goes
+### through the normal package manager, so no /usr/local-style path
+### problem like aws-cli above). The old Ansible task had to patch a wrong
+### sslcacert path in the resulting repo file on Fedora - deliberately NOT
+### porting that workaround here unverified (per the migration plan): add
+### it back only if the next build/VM test actually reproduces the bug in
+### this environment.
+curl -fsSL https://get.opentofu.org/install-opentofu.sh \
+    | sh -s -- --install-method rpm
+
 ### Plymouth theme
 plymouth-set-default-theme details -R
 
