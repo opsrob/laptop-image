@@ -25,14 +25,6 @@ dnf5 install -y --nogpgcheck \
 # persistent repo), so its signing key needs importing explicitly first.
 rpm --import https://proton.me/download/bridge/bridge_pubkey.gpg
 
-# HashiCorp's repo (system_files/etc/yum.repos.d/hashicorp.repo) has
-# gpgcheck=1 with a remote gpgkey= URL, same as OpenTofu below. VM-tested
-# 2026-09-15: without pre-importing it, the key isn't trusted at runtime -
-# `dnf5 makecache`/install against this repo stops for an interactive
-# "Is this ok [y/N]" key-import prompt, which would hang forever in any
-# unattended context. Import it now so it's already trusted.
-rpm --import https://rpm.releases.hashicorp.com/gpg
-
 ### Install packages
 
 # --skip-unavailable: Bluefin already ships several of these (and pulls
@@ -251,15 +243,6 @@ rm -rf /tmp/awscliv2.zip /tmp/aws
 curl -fsSL https://get.opentofu.org/install-opentofu.sh \
     | sh -s -- --install-method rpm
 
-### Same class of issue as the HashiCorp key above: opentofu.repo's two
-### sections (opentofu, opentofu-source) each have their own gpgcheck=1
-### remote gpgkey= URL. The install script above imports these during the
-### build's own dnf5 transaction, but that trust doesn't carry over to the
-### booted image (VM-tested 2026-09-15: `dnf5 makecache` prompted to
-### re-import both). Import explicitly so they're already trusted.
-rpm --import https://get.opentofu.org/opentofu.asc
-rpm --import https://packages.opentofu.org/opentofu/tofu/gpgkey
-
 ### VM-verified 2026-09-15: the sslcacert bug the old Ansible task worked
 ### around does reproduce here - the repo file points at
 ### /etc/pki/tls/certs/ca-bundle.crt, which doesn't exist/work on Fedora,
@@ -269,6 +252,19 @@ rpm --import https://packages.opentofu.org/opentofu/tofu/gpgkey
 ### here - unlike the old lineinfile task, which only rewrote the last
 ### match and needed ini_file to handle both sections independently.
 sed -i 's#^sslcacert=.*#sslcacert=/etc/ssl/certs/ca-bundle.crt#' /etc/yum.repos.d/opentofu.repo
+
+### opentofu.repo's two sections (opentofu, opentofu-source) both ship
+### with repo_gpgcheck=1 and a remote gpgkey= URL. The install script
+### above imports these keys during the build's own dnf5 transaction, but
+### that trust is tracked under /var, which doesn't survive from the
+### image build into a deployed ostree/bootc system - VM-tested
+### 2026-09-16: rpm --import'ing both keys at build time (see git
+### history) does NOT fix this, dnf5 still prompts to re-import on every
+### fresh deployment. Package-level gpgcheck=1 (untouched) still verifies
+### each RPM's own signature at install time, which is the check that
+### actually matters; disabling the separate, weaker repo metadata check
+### is what actually stops the prompt, same fix as HashiCorp's repo file.
+sed -i 's/^repo_gpgcheck=.*/repo_gpgcheck=0/' /etc/yum.repos.d/opentofu.repo
 
 ### Plymouth theme
 plymouth-set-default-theme details -R

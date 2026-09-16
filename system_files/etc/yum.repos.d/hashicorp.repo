@@ -3,5 +3,14 @@ name=Hashicorp Channel
 baseurl=https://rpm.releases.hashicorp.com/fedora/$releasever/$basearch/stable
 enabled=1
 gpgcheck=1
-repo_gpgcheck=1
+# repo_gpgcheck=1 (the original default) makes dnf5 prompt interactively
+# to trust this repo's metadata-signing key on first use. That trust is
+# tracked under /var, which doesn't survive from the image build into a
+# deployed ostree/bootc system - VM-tested 2026-09-16: rpm --import'ing
+# the key at build time (see git history) does NOT fix this, the prompt
+# still happens on every fresh deployment. Package-level gpgcheck=1 above
+# still verifies each RPM's own signature at install time, which is the
+# check that actually matters; repo_gpgcheck=0 just skips the separate,
+# weaker metadata-signature check so this doesn't block unattended use.
+repo_gpgcheck=0
 gpgkey=https://rpm.releases.hashicorp.com/gpg
