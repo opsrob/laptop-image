@@ -147,6 +147,14 @@ dnf5 install -y --skip-unavailable snapd
 ln -sf /var/lib/snapd/snap /snap
 systemctl enable snapd.socket
 
+# Actual snap installs (zotero-snap, signal-desktop, vivaldi, libation, hugo
+# extended, obsidian/ghostty/plex-desktop classic) can't happen here - snap
+# install needs a live snapd daemon, which doesn't exist during a container
+# build. Deferred to laptop-image-snap-setup.service, which runs once on
+# first boot after snapd is seeded (see system_files/usr/lib/systemd/system/
+# and system_files/usr/libexec/).
+systemctl enable laptop-image-snap-setup.service
+
 # Proton Mail Bridge - install the latest release asset directly (same
 # approach as the old Ansible task: look up the current release, install
 # the matching x86_64 rpm).
