@@ -25,6 +25,14 @@ dnf5 install -y --nogpgcheck \
 # persistent repo), so its signing key needs importing explicitly first.
 rpm --import https://proton.me/download/bridge/bridge_pubkey.gpg
 
+# HashiCorp's repo (system_files/etc/yum.repos.d/hashicorp.repo) has
+# gpgcheck=1 with a remote gpgkey= URL, same as OpenTofu below. VM-tested
+# 2026-09-15: without pre-importing it, the key isn't trusted at runtime -
+# `dnf5 makecache`/install against this repo stops for an interactive
+# "Is this ok [y/N]" key-import prompt, which would hang forever in any
+# unattended context. Import it now so it's already trusted.
+rpm --import https://rpm.releases.hashicorp.com/gpg
+
 ### Install packages
 
 # --skip-unavailable: Bluefin already ships several of these (and pulls
@@ -242,6 +250,15 @@ rm -rf /tmp/awscliv2.zip /tmp/aws
 ### problem like aws-cli above).
 curl -fsSL https://get.opentofu.org/install-opentofu.sh \
     | sh -s -- --install-method rpm
+
+### Same class of issue as the HashiCorp key above: opentofu.repo's two
+### sections (opentofu, opentofu-source) each have their own gpgcheck=1
+### remote gpgkey= URL. The install script above imports these during the
+### build's own dnf5 transaction, but that trust doesn't carry over to the
+### booted image (VM-tested 2026-09-15: `dnf5 makecache` prompted to
+### re-import both). Import explicitly so they're already trusted.
+rpm --import https://get.opentofu.org/opentofu.asc
+rpm --import https://packages.opentofu.org/opentofu/tofu/gpgkey
 
 ### VM-verified 2026-09-15: the sslcacert bug the old Ansible task worked
 ### around does reproduce here - the repo file points at
