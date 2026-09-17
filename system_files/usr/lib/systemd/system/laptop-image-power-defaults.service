@@ -1,0 +1,13 @@
+[Unit]
+Description=Set laptop-image default power profile (first boot only)
+After=power-profiles-daemon.service
+Wants=power-profiles-daemon.service
+ConditionPathExists=!/var/lib/laptop-image/power-profile-set
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/laptop-image-set-power-profile.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

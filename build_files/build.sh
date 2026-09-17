@@ -6,6 +6,12 @@ set -ouex pipefail
 # (includes the yum.repos.d/*.repo files for vscode/1password/hashicorp/google-chrome)
 cp -avf "/ctx/system_files"/. /
 
+# Compile the dconf defaults dropped into /etc/dconf/db/local.d/ (power
+# defaults below) into /etc/dconf/db/local - both the source .d file and
+# this compiled db live under /etc, so (unlike /var) they're part of the
+# ostree/bootc image commit and don't need a first-boot step.
+dconf update
+
 ### Repo/key setup not covered by a plain .repo file in system_files/
 
 # Bluefin uses the "negativo17" multimedia repo for codecs/drivers rather
@@ -184,6 +190,22 @@ dnf5 install -y --nogpgcheck --setopt=tsflags=noscripts "${LIBATION_URL}"
 # in the base image, nothing to wire up here. It also re-syncs on every
 # boot (so adding/removing an app from this list later just works) and
 # respects a user who's deliberately uninstalled one.
+
+# Power defaults: performance mode, battery percentage shown, no
+# auto-suspend when plugged in (other power settings left at their
+# distro default). show-battery-percentage and sleep-inactive-ac-type are
+# plain dconf keys, handled above via system_files/etc/dconf/db/local.d/ +
+# `dconf update`. The Performance power-profile-daemon profile can't be
+# set that way though - powerprofilesctl talks to the live system D-Bus,
+# which doesn't exist during a container build (same class of problem as
+# the flatpak installs below), and power-profiles-daemon persists its
+# active profile to /var/lib/power-profiles-daemon/state.ini, which isn't
+# part of the image commit either. No preinstall.d-style mechanism exists
+# for power-profiles-daemon, so this uses the same first-boot-unit pattern
+# the flatpak installs originally used (see
+# system_files/usr/lib/systemd/system/laptop-image-power-defaults.service
+# and system_files/usr/libexec/).
+systemctl enable laptop-image-power-defaults.service
 
 # hugo (the old laptop's "extended" build) is a CLI tool, not a flatpak
 # candidate, and upstream merged the extended/Sass features into the
