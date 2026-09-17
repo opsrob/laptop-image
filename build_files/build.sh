@@ -173,14 +173,13 @@ LIBATION_URL=$(curl -fsSL https://api.github.com/repos/rmcrackan/Libation/releas
 dnf5 install -y --nogpgcheck --setopt=tsflags=noscripts "${LIBATION_URL}"
 
 # zotero, signal, vivaldi, obsidian, and plex-desktop all have official
-# Flathub packages. Install system-wide so they're available immediately
-# with no first-boot step - Bluefin ships the flathub remote pre-configured.
-flatpak install --system -y flathub \
-    org.zotero.Zotero \
-    org.signal.Signal \
-    com.vivaldi.Vivaldi \
-    md.obsidian.Obsidian \
-    tv.plex.PlexDesktop
+# Flathub packages. `flatpak install --system` can't happen here though:
+# it writes to /var/lib/flatpak, and /var isn't part of the ostree/bootc
+# image commit (only /usr and /etc are) - a build-time install silently
+# vanishes on deploy. VM/laptop-confirmed 2026-09-17. Deferred to
+# laptop-image-flatpak-setup.service, which runs once on first boot (see
+# system_files/usr/lib/systemd/system/ and system_files/usr/libexec/).
+systemctl enable laptop-image-flatpak-setup.service
 
 # hugo (the old laptop's "extended" build) is a CLI tool, not a flatpak
 # candidate, and upstream merged the extended/Sass features into the

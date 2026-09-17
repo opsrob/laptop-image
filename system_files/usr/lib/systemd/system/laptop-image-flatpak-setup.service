@@ -1,0 +1,13 @@
+[Unit]
+Description=Install laptop-image default Flatpaks (first boot only)
+Wants=network-online.target
+After=network-online.target
+ConditionPathExists=!/var/lib/laptop-image/flatpaks-installed
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/laptop-image-install-flatpaks.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
