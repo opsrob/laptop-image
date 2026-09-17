@@ -160,12 +160,17 @@ dnf5 install -y --skip-unavailable ghostty
 
 # Libation (Audible library manager) ships an official Linux .rpm release
 # asset rather than through any yum repo or Flathub - same pattern as
-# Proton Bridge/zoom/ente below.
+# Proton Bridge/zoom/ente below. Its %post scriptlet also hits the same
+# failure class as proton-vpn-daemon/idriveforlinux below: it tries
+# `sysctl fs.inotify.max_user_instances=524288`, which needs a live kernel
+# to write to and fails with "permission denied" during a container build.
+# RPM calls it non-critical and keeps going, but dnf5 aborts the whole
+# transaction anyway - noscripts sidesteps it the same way.
 LIBATION_URL=$(curl -fsSL https://api.github.com/repos/rmcrackan/Libation/releases/latest \
     | grep -o '"browser_download_url": *"[^"]*linux-chardonnay-amd64\.rpm"' \
     | head -1 \
     | cut -d'"' -f4)
-dnf5 install -y --nogpgcheck "${LIBATION_URL}"
+dnf5 install -y --nogpgcheck --setopt=tsflags=noscripts "${LIBATION_URL}"
 
 # zotero, signal, vivaldi, obsidian, and plex-desktop all have official
 # Flathub packages. Install system-wide so they're available immediately
