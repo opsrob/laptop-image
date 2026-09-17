@@ -134,26 +134,53 @@ systemctl enable me.proton.vpn.split_tunneling.service
 # this way already - follow that pattern if a dkms module is actually
 # needed here, don't just dnf5 install dkms and hope).
 
-# snapd (classic-confinement snaps): VM-verified 2026-09-15 that snapd
-# itself wasn't installed in the image at all, hence no /var/lib/snapd, no
-# /snap, no /snap/bin on PATH. Resolves fine from Fedora's own repo (not
-# negativo17). The /snap symlink is the same manual step the old Ansible
-# task needed (tasks/packages.yml) - Fedora's snapd package doesn't create
-# it automatically. Still unverified: whether the actual snap list
-# (zotero-snap, signal-desktop, vivaldi, libation, hugo from the extended
-# channel, and the classic ones - obsidian, ghostty, plex-desktop) installs
-# and runs correctly on this ostree base - test that in the next VM build.
-dnf5 install -y --skip-unavailable snapd
-ln -sf /var/lib/snapd/snap /snap
-systemctl enable snapd.socket
+# snapd is deliberately NOT installed. The old laptop's snap list
+# (zotero-snap, signal-desktop, vivaldi, libation, hugo extended, obsidian,
+# ghostty, plex-desktop) has been re-homed below: Universal Blue's supported
+# update path (`ujust update`/ublue-update) only refreshes flatpaks,
+# Homebrew, and the system image itself - snap had no update integration
+# and was only ever used here because these apps happened to be packaged
+# that way on the old laptop.
 
-# Actual snap installs (zotero-snap, signal-desktop, vivaldi, libation, hugo
-# extended, obsidian/ghostty/plex-desktop classic) can't happen here - snap
-# install needs a live snapd daemon, which doesn't exist during a container
-# build. Deferred to laptop-image-snap-setup.service, which runs once on
-# first boot after snapd is seeded (see system_files/usr/lib/systemd/system/
-# and system_files/usr/libexec/).
-systemctl enable laptop-image-snap-setup.service
+# Ghostty isn't on Flathub and doesn't resolve from Fedora's own repos on
+# this negativo17-based repo set (confirmed via dnf5 search/repoquery) - it
+# ships as source and relies on distro/community packaging. Using
+# scottames/ghostty per
+# https://copr.fedorainfracloud.org/coprs/scottames/ghostty/.
+dnf5 copr enable -y scottames/ghostty
+
+# Same repo_gpgcheck issue as OpenTofu/HashiCorp below: the GPG trust dnf5
+# imports for a COPR during the build is tracked under /var and doesn't
+# survive into the deployed ostree system, causing a re-import prompt on
+# every fresh deployment. Package-level gpgcheck (untouched) still verifies
+# each RPM's own signature, which is the check that actually matters.
+sed -i 's/^repo_gpgcheck=.*/repo_gpgcheck=0/' /etc/yum.repos.d/_copr:copr.fedorainfracloud.org:scottames:ghostty.repo
+
+dnf5 install -y --skip-unavailable ghostty
+
+# Libation (Audible library manager) ships an official Linux .rpm release
+# asset rather than through any yum repo or Flathub - same pattern as
+# Proton Bridge/zoom/ente below.
+LIBATION_URL=$(curl -fsSL https://api.github.com/repos/rmcrackan/Libation/releases/latest \
+    | grep -o '"browser_download_url": *"[^"]*linux-chardonnay-amd64\.rpm"' \
+    | head -1 \
+    | cut -d'"' -f4)
+dnf5 install -y --nogpgcheck "${LIBATION_URL}"
+
+# zotero, signal, vivaldi, obsidian, and plex-desktop all have official
+# Flathub packages. Install system-wide so they're available immediately
+# with no first-boot step - Bluefin ships the flathub remote pre-configured.
+flatpak install --system -y flathub \
+    org.zotero.Zotero \
+    org.signal.Signal \
+    com.vivaldi.Vivaldi \
+    md.obsidian.Obsidian \
+    tv.plex.PlexDesktop
+
+# hugo (the old laptop's "extended" build) is a CLI tool, not a flatpak
+# candidate, and upstream merged the extended/Sass features into the
+# regular build years ago - installed via `brew install hugo` on first
+# boot instead (see the dotfiles repo), nothing to do here.
 
 # Proton Mail Bridge - install the latest release asset directly (same
 # approach as the old Ansible task: look up the current release, install
