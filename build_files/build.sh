@@ -176,10 +176,14 @@ dnf5 install -y --nogpgcheck --setopt=tsflags=noscripts "${LIBATION_URL}"
 # Flathub packages. `flatpak install --system` can't happen here though:
 # it writes to /var/lib/flatpak, and /var isn't part of the ostree/bootc
 # image commit (only /usr and /etc are) - a build-time install silently
-# vanishes on deploy. VM/laptop-confirmed 2026-09-17. Deferred to
-# laptop-image-flatpak-setup.service, which runs once on first boot (see
-# system_files/usr/lib/systemd/system/ and system_files/usr/libexec/).
-systemctl enable laptop-image-flatpak-setup.service
+# vanishes on deploy (VM/laptop-confirmed 2026-09-17). Using flatpak's own
+# preinstall mechanism instead of a custom first-boot unit: dropping
+# .preinstall files into /etc/flatpak/preinstall.d/ (see
+# system_files/etc/flatpak/preinstall.d/) is what Bluefin itself uses for
+# its own default apps, via flatpak-preinstall.service - already enabled
+# in the base image, nothing to wire up here. It also re-syncs on every
+# boot (so adding/removing an app from this list later just works) and
+# respects a user who's deliberately uninstalled one.
 
 # hugo (the old laptop's "extended" build) is a CLI tool, not a flatpak
 # candidate, and upstream merged the extended/Sass features into the

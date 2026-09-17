@@ -1,0 +1,14 @@
+[Flatpak Preinstall org.zotero.Zotero]
+Branch=stable
+
+[Flatpak Preinstall org.signal.Signal]
+Branch=stable
+
+[Flatpak Preinstall com.vivaldi.Vivaldi]
+Branch=stable
+
+[Flatpak Preinstall md.obsidian.Obsidian]
+Branch=stable
+
+[Flatpak Preinstall tv.plex.PlexDesktop]
+Branch=stable
