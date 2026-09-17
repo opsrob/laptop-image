@@ -167,7 +167,7 @@ dnf5 install -y --skip-unavailable ghostty
 # Libation (Audible library manager) ships an official Linux .rpm release
 # asset rather than through any yum repo or Flathub - same pattern as
 # Proton Bridge/zoom/ente below. Its %post scriptlet also hits the same
-# failure class as proton-vpn-daemon/idriveforlinux below: it tries
+# failure class as proton-vpn-daemon below: it tries
 # `sysctl fs.inotify.max_user_instances=524288`, which needs a live kernel
 # to write to and fails with "permission denied" during a container build.
 # RPM calls it non-critical and keeps going, but dnf5 aborts the whole
@@ -221,18 +221,16 @@ PROTON_BRIDGE_URL=$(curl -fsSL https://api.github.com/repos/ProtonMail/proton-br
     | cut -d'"' -f4)
 dnf5 install -y "${PROTON_BRIDGE_URL}"
 
-# IDrive desktop app (per project notes, IDrive is managed via this desktop
-# app now, not the old CLI/idrivecron setup). Same class of problem as
-# proton-vpn-daemon above: its %post scriptlet does `mkdir /home` while
-# installing file-manager icon integration, assuming /home is a plain
-# missing directory - on this ostree-based image /home is a symlink (to
-# /var/home), so mkdir fails ("File exists") and dnf5 aborts the whole
-# transaction over what RPM itself calls a non-critical, purely cosmetic
-# failure (the log confirms it wasn't even going to do anything: "Dolphin
-# file manager not detected. Skipping plugin installation"). noscripts
-# sidesteps it; nothing here needs redoing manually, unlike proton-vpn.
-dnf5 install -y --nogpgcheck --setopt=tsflags=noscripts \
-    'https://www.idrivedownloads.com/downloads/linux/linux-desktop/IDriveForLinux.rpm'
+# IDrive (command-line tools) is NOT installed here - it's installed manually
+# after boot with IDrive's own `idriveforlinux.bin --install`, which
+# hardcodes /opt/IDriveForLinux and writes its backend and state under it.
+# That can't work in the read-only image /opt, so the image only provides an
+# empty mountpoint that opt-IDriveForLinux.mount bind-mounts from the
+# writable /var/opt/IDriveForLinux (see that unit for the install steps).
+# The desktop app RPM was dropped: its %post needs dnf installs, /usr/share
+# writes and more that don't fit an image-based system.
+mkdir -p /opt/IDriveForLinux
+systemctl enable opt-IDriveForLinux.mount
 
 # Zoom and Ente Photos both ship as self-contained, unsigned release RPMs
 # rather than through any yum repo - a bare `dnf5 install -y zoom`/`ente`
@@ -242,9 +240,9 @@ dnf5 install -y --nogpgcheck --setopt=tsflags=noscripts \
 # which the old Ansible task's `state: present` silently no-op'd on ever
 # since instead of actually being able to reinstall from scratch).
 #
-# noscripts applied preemptively on both: two other vendor desktop-app
-# RPMs installed this way (proton-vpn-daemon, idriveforlinux) already hit
-# the exact same failure class - a %post/%posttrans scriptlet assuming a
+# noscripts applied preemptively on both: other vendor desktop-app RPMs
+# installed this way (proton-vpn-daemon, Libation) already hit the exact
+# same failure class - a %post/%posttrans scriptlet assuming a
 # live desktop/systemd environment (desktop database/icon cache updates,
 # D-Bus calls) that doesn't exist in a container build, which RPM itself
 # treats as non-critical but dnf5 treats as fatal to the whole

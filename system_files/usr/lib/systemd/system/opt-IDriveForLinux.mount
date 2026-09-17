@@ -1,0 +1,24 @@
+# Makes /opt/IDriveForLinux writable by bind-mounting it from
+# /var/opt/IDriveForLinux. IDrive's command-line tools hardcode that /opt
+# path and write their backend and state under it, but /opt is part of the
+# read-only image. Only mounts once /var/opt/IDriveForLinux exists. To
+# install IDrive (download idriveforlinux.bin from
+# https://www.idrivedownloads.com/downloads/linux/download-for-linux/linux-bin/idriveforlinux.bin):
+#
+#   sudo mkdir -p /var/opt/IDriveForLinux
+#   sudo systemctl start opt-IDriveForLinux.mount
+#   chmod a+x idriveforlinux.bin && sudo ./idriveforlinux.bin --install
+#   /opt/IDriveForLinux/bin/idrive -a    # account setup; -s for the scheduler
+[Unit]
+Description=Writable IDrive install directory (bind mount from /var/opt)
+ConditionPathIsDirectory=/var/opt/IDriveForLinux
+RequiresMountsFor=/var/opt
+
+[Mount]
+What=/var/opt/IDriveForLinux
+Where=/opt/IDriveForLinux
+Type=none
+Options=bind
+
+[Install]
+WantedBy=multi-user.target
