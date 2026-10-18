@@ -6,6 +6,17 @@ set -ouex pipefail
 # (includes the yum.repos.d/*.repo files for vscode/1password/hashicorp/google-chrome)
 cp -avf "/ctx/system_files"/. /
 
+# Unauthenticated api.github.com calls share the runner's IP-wide rate limit
+# (60/hr) and intermittently 403 the nightly build. Use the token mounted as
+# a build secret (see Containerfile / `just build`) when there is one.
+gh_latest_release() {
+    local auth=()
+    if [[ -s /run/secrets/gh_token ]]; then
+        auth=(-H "Authorization: Bearer $(cat /run/secrets/gh_token)")
+    fi
+    curl -fsSL --retry 3 "${auth[@]}" "https://api.github.com/repos/$1/releases/latest"
+}
+
 # Compile the dconf defaults dropped into /etc/dconf/db/local.d/ (power
 # defaults below) into /etc/dconf/db/local - both the source .d file and
 # this compiled db live under /etc, so (unlike /var) they're part of the
@@ -172,7 +183,7 @@ dnf5 install -y --skip-unavailable ghostty
 # to write to and fails with "permission denied" during a container build.
 # RPM calls it non-critical and keeps going, but dnf5 aborts the whole
 # transaction anyway - noscripts sidesteps it the same way.
-LIBATION_URL=$(curl -fsSL https://api.github.com/repos/rmcrackan/Libation/releases/latest \
+LIBATION_URL=$(gh_latest_release rmcrackan/Libation \
     | grep -o '"browser_download_url": *"[^"]*linux-chardonnay-amd64\.rpm"' \
     | head -1 \
     | cut -d'"' -f4)
@@ -215,7 +226,7 @@ systemctl enable laptop-image-power-defaults.service
 # Proton Mail Bridge - install the latest release asset directly (same
 # approach as the old Ansible task: look up the current release, install
 # the matching x86_64 rpm).
-PROTON_BRIDGE_URL=$(curl -fsSL https://api.github.com/repos/ProtonMail/proton-bridge/releases/latest \
+PROTON_BRIDGE_URL=$(gh_latest_release ProtonMail/proton-bridge \
     | grep -o '"browser_download_url": *"[^"]*x86_64\.rpm"' \
     | head -1 \
     | cut -d'"' -f4)
@@ -252,7 +263,7 @@ systemctl enable opt-IDriveForLinux.mount
 dnf5 install -y --nogpgcheck --setopt=tsflags=noscripts \
     'https://zoom.us/client/latest/zoom_x86_64.rpm'
 
-ENTE_URL=$(curl -fsSL https://api.github.com/repos/ente/photos-desktop/releases/latest \
+ENTE_URL=$(gh_latest_release ente/photos-desktop \
     | grep -o '"browser_download_url": *"[^"]*x86_64\.rpm"' \
     | head -1 \
     | cut -d'"' -f4)
@@ -280,7 +291,7 @@ npm install -g --prefix=/usr aws-cdk
 ### of this line "succeeded" without actually installing anything).
 ### Download the release zip directly instead, same pattern as Proton
 ### Bridge/zoom/ente above.
-TFLINT_URL=$(curl -fsSL https://api.github.com/repos/terraform-linters/tflint/releases/latest \
+TFLINT_URL=$(gh_latest_release terraform-linters/tflint \
     | grep -o '"browser_download_url": *"[^"]*tflint_linux_amd64\.zip"' \
     | cut -d'"' -f4)
 curl -fsSL -o /tmp/tflint.zip "${TFLINT_URL}"

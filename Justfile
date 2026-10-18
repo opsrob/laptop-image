@@ -100,6 +100,10 @@ build $target_image=image_name $tag=default_tag:
 
     BUILD_ARGS=()
     LABELS=()
+    # Authenticates the build's api.github.com release lookups (rate limits)
+    if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+        BUILD_ARGS+=("--secret" "id=gh_token,env=GITHUB_TOKEN")
+    fi
     if [[ -z "$(git status -s)" ]]; then
         GIT_SHA=$(git rev-parse --short HEAD)
         LABELS+=("--label" "io.artifacthub.package.readme-url=https://raw.githubusercontent.com/{{ repo_organization }}/{{ image_name }}/${GIT_SHA}/README.md")
