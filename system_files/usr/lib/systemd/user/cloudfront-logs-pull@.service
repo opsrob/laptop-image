@@ -1,4 +1,5 @@
-# Pulls one site's CloudFront access logs down to ~/logs/<site>/. The instance
+# Pulls one site's CloudFront access logs down to ~/logs/<site>/ and then
+# rebuilds its GoAccess report at ~/logs/<site>-report.html. The instance
 # name picks the script: cloudfront-logs-pull@opsrob.service runs
 # ~/.local/bin/opsrob-logs (and @dontcall runs dontcall-logs). Those scripts
 # come from the dotfiles repo (chezmoi) and read their AWS credentials from
@@ -15,5 +16,7 @@ StartLimitBurst=3
 [Service]
 Type=oneshot
 ExecStart=%h/.local/bin/%i-logs pull
+# Only runs after a successful pull; a failed pull skips it and retries below.
+ExecStartPost=%h/.local/bin/%i-logs report
 Restart=on-failure
 RestartSec=10min
