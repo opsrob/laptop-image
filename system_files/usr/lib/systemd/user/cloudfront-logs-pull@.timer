@@ -1,0 +1,15 @@
+# Daily trigger for cloudfront-logs-pull@.service. Persistent=true is why this
+# is a timer rather than cron: a laptop is often asleep or off at the scheduled
+# time, and this runs a missed pull at the next boot/login instead of skipping
+# it. That matters because the dontcallseattlepd.com logging bucket expires
+# objects after 30 days.
+[Unit]
+Description=Daily %i CloudFront log pull
+
+[Timer]
+OnCalendar=daily
+RandomizedDelaySec=30min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

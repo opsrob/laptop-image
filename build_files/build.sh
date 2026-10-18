@@ -329,6 +329,17 @@ sed -i 's#^sslcacert=.*#sslcacert=/etc/ssl/certs/ca-bundle.crt#' /etc/yum.repos.
 ### is what actually stops the prompt, same fix as HashiCorp's repo file.
 sed -i 's/^repo_gpgcheck=.*/repo_gpgcheck=0/' /etc/yum.repos.d/opentofu.repo
 
+### CloudFront log pulls (opsrob.com, dontcallseattlepd.com)
+### Daily user timers that run ~/.local/bin/{opsrob,dontcall}-logs pull (see
+### system_files/usr/lib/systemd/user/). `systemctl --global enable` is the
+### user-unit equivalent of `systemctl enable`: it only creates the
+### timers.target.wants symlinks under /etc/systemd/user, so it works at build
+### time without a running user manager, and applies to every user's session.
+### The scripts and their AWS profiles (opsrob-logs, dontcall-logs, in
+### ~/.aws/credentials) are deliberately not part of the image - the scripts
+### are tracked in the dotfiles repo and the keys are per-machine secrets.
+systemctl --global enable cloudfront-logs-pull@opsrob.timer cloudfront-logs-pull@dontcall.timer
+
 ### Plymouth theme
 plymouth-set-default-theme details -R
 

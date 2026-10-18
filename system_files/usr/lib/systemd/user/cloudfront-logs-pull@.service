@@ -1,0 +1,19 @@
+# Pulls one site's CloudFront access logs down to ~/logs/<site>/. The instance
+# name picks the script: cloudfront-logs-pull@opsrob.service runs
+# ~/.local/bin/opsrob-logs (and @dontcall runs dontcall-logs). Those scripts
+# come from the dotfiles repo (chezmoi) and read their AWS credentials from
+# a read-only IAM profile in ~/.aws/credentials, so neither is in this image.
+# Triggered daily by cloudfront-logs-pull@.timer; logs are in the user journal
+# (journalctl --user -u 'cloudfront-logs-pull@*').
+[Unit]
+Description=Pull %i CloudFront logs
+# A run while offline (just woken, no network yet) fails fast and retries
+# rather than waiting for the next day; capped so it can't loop forever.
+StartLimitIntervalSec=2h
+StartLimitBurst=3
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/%i-logs pull
+Restart=on-failure
+RestartSec=10min
