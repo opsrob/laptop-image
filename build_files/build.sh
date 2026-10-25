@@ -232,6 +232,26 @@ PROTON_BRIDGE_URL=$(gh_latest_release ProtonMail/proton-bridge \
     | cut -d'"' -f4)
 dnf5 install -y "${PROTON_BRIDGE_URL}"
 
+# Proton Mail desktop app - Proton publishes a bare RPM (no yum repo), plus
+# a version.json with each release's URL and SHA512, which their support
+# page tells you to check the download against. The RPM itself is unsigned
+# (hence --nogpgcheck), so that checksum is the only integrity check
+# available. Take the newest "Stable" release rather than the unversioned
+# ProtonMail-desktop-beta.rpm link, so the checksum is guaranteed to
+# describe the file actually installed. No noscripts needed here: the
+# package has no scriptlets at all and installs entirely under /usr.
+PROTON_MAIL_RELEASE=$(curl -fsSL --retry 3 https://proton.me/download/mail/linux/version.json \
+    | python3 -I -c '
+import json, sys
+release = next(r for r in json.load(sys.stdin)["Releases"] if r["CategoryName"] == "Stable")
+rpm = next(f for f in release["File"] if "rpm" in f["Identifier"])
+print(rpm["Url"], rpm["Sha512CheckSum"])')
+read -r PROTON_MAIL_URL PROTON_MAIL_SHA512 <<< "${PROTON_MAIL_RELEASE}"
+curl -fsSL --retry 3 -o /tmp/ProtonMail-desktop.rpm "${PROTON_MAIL_URL}"
+echo "${PROTON_MAIL_SHA512}  /tmp/ProtonMail-desktop.rpm" | sha512sum --check -
+dnf5 install -y --nogpgcheck /tmp/ProtonMail-desktop.rpm
+rm /tmp/ProtonMail-desktop.rpm
+
 # IDrive (command-line tools) is NOT installed here - it's installed manually
 # after boot with IDrive's own `idriveforlinux.bin --install`, which
 # hardcodes /opt/IDriveForLinux and writes its backend and state under it.
