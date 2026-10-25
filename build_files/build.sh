@@ -36,7 +36,7 @@ dconf update
 # .repo file; --nogpgcheck matches the original Ansible task, which also
 # disabled gpg check for this install.
 dnf5 install -y --nogpgcheck \
-    'https://repo.protonvpn.com/fedora-44-stable/protonvpn-stable-release/protonvpn-stable-release-1.0.4-1.noarch.rpm'
+    'https://repo.protonvpn.com/fedora-44-stable/protonvpn-stable-release/protonvpn-stable-release-1.0.5-1.noarch.rpm'
 
 # Proton Mail Bridge is installed from a one-off release asset (not a
 # persistent repo), so its signing key needs importing explicitly first.
@@ -104,8 +104,8 @@ dnf5 install -y --skip-unavailable \
     vlc \
     golang \
     qbittorrent \
-    nodejs22 \
-    nodejs22-npm \
+    nodejs24 \
+    nodejs24-npm \
     nm-connection-editor \
     abcde \
     lame \
