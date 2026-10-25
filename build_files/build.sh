@@ -267,8 +267,8 @@ rm /tmp/ProtonMail-desktop.rpm
 # the Mail app above: the checksum is served from the same origin as the
 # binary, so it only catches a corrupted download. Installed to /usr/bin
 # since /usr/local is a symlink into /var on an ostree system. Use the
-# linux/x64 build; Proton also documents a linux/x64-baseline variant for
-# CPUs without AVX2, which this laptop (12th Gen Intel) has.
+# default linux/x64 build: Proton documents a linux/x64-baseline variant for
+# CPUs without AVX2, but this laptop (12th Gen Intel) has AVX2.
 PROTON_DRIVE_RELEASE=$(curl -fsSL --retry 3 https://proton.me/download/drive/cli/version.json \
     | python3 -I -c '
 import json, sys
