@@ -232,6 +232,60 @@ PROTON_BRIDGE_URL=$(gh_latest_release ProtonMail/proton-bridge \
     | cut -d'"' -f4)
 dnf5 install -y "${PROTON_BRIDGE_URL}"
 
+# Proton Mail desktop app - Proton publishes a bare RPM (no yum repo), plus
+# a version.json with each release's URL and SHA512, which their support
+# page tells you to check the download against. The RPM itself is unsigned
+# (hence --nogpgcheck) and the checksum comes from the same proton.me origin
+# as the file, so the SHA512 only catches a corrupted download - it is not
+# an authenticity check like Bridge's imported signing key. Take the newest
+# fully rolled-out "Stable" release rather than the unversioned
+# ProtonMail-desktop-beta.rpm link, so the checksum is guaranteed to
+# describe the file actually installed. No noscripts needed as of 1.14.0:
+# the package has no scriptlets at all and installs entirely under /usr. If
+# a later release adds a %post that needs a live system, add
+# --setopt=tsflags=noscripts like Libation/Zoom above.
+PROTON_MAIL_RELEASE=$(curl -fsSL --retry 3 https://proton.me/download/mail/linux/version.json \
+    | python3 -I -c '
+import json, sys
+stable = [r for r in json.load(sys.stdin)["Releases"]
+          if r["CategoryName"] == "Stable" and r["RolloutProportion"] == 1]
+if not stable:
+    sys.exit("Proton Mail: no fully rolled-out Stable release in version.json")
+release = max(stable, key=lambda r: r["ReleaseDate"])
+rpms = [f for f in release["File"] if "rpm" in f["Identifier"]]
+if not rpms:
+    sys.exit("Proton Mail: no rpm file in Stable release " + release["Version"])
+print(rpms[0]["Url"], rpms[0]["Sha512CheckSum"])')
+read -r PROTON_MAIL_URL PROTON_MAIL_SHA512 <<< "${PROTON_MAIL_RELEASE}"
+curl -fsSL --retry 3 -o /tmp/ProtonMail-desktop.rpm "${PROTON_MAIL_URL}"
+echo "${PROTON_MAIL_SHA512}  /tmp/ProtonMail-desktop.rpm" | sha512sum --check -
+dnf5 install -y --nogpgcheck /tmp/ProtonMail-desktop.rpm
+rm /tmp/ProtonMail-desktop.rpm
+
+# Proton Drive CLI - a standalone Bun-compiled binary (no rpm, no repo),
+# listed in its own version.json with a SHA512 per platform. Same caveat as
+# the Mail app above: the checksum is served from the same origin as the
+# binary, so it only catches a corrupted download. Installed to /usr/bin
+# since /usr/local is a symlink into /var on an ostree system. Use the
+# default linux/x64 build: Proton documents a linux/x64-baseline variant for
+# CPUs without AVX2, but this laptop (12th Gen Intel) has AVX2.
+PROTON_DRIVE_RELEASE=$(curl -fsSL --retry 3 https://proton.me/download/drive/cli/version.json \
+    | python3 -I -c '
+import json, sys
+stable = [r for r in json.load(sys.stdin)["Releases"] if r["CategoryName"] == "Stable"]
+if not stable:
+    sys.exit("Proton Drive CLI: no Stable release in version.json")
+release = max(stable, key=lambda r: r["ReleaseDate"])
+files = [f for f in release["Files"] if f["Platform"] == "linux/x64"]
+if not files:
+    sys.exit("Proton Drive CLI: no linux/x64 file in Stable release " + release["Version"])
+print(files[0]["Url"], files[0]["Sha512CheckSum"])')
+read -r PROTON_DRIVE_URL PROTON_DRIVE_SHA512 <<< "${PROTON_DRIVE_RELEASE}"
+curl -fsSL --retry 3 -o /tmp/proton-drive "${PROTON_DRIVE_URL}"
+echo "${PROTON_DRIVE_SHA512}  /tmp/proton-drive" | sha512sum --check -
+install -m 0755 /tmp/proton-drive /usr/bin/proton-drive
+rm /tmp/proton-drive
+
 # IDrive (command-line tools) is NOT installed here - it's installed manually
 # after boot with IDrive's own `idriveforlinux.bin --install`, which
 # hardcodes /opt/IDriveForLinux and writes its backend and state under it.
