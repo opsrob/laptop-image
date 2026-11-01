@@ -9,12 +9,16 @@ cp -avf "/ctx/system_files"/. /
 # Unauthenticated api.github.com calls share the runner's IP-wide rate limit
 # (60/hr) and intermittently 403 the nightly build. Use the token mounted as
 # a build secret (see Containerfile / `just build`) when there is one.
+#
+# Every `curl --retry 3` in this script also passes --retry-all-errors: plain
+# --retry only covers timeouts and HTTP 408/429/5xx, so a connection reset
+# (curl exit 56, seen downloading the Proton Mail rpm) failed the whole build.
 gh_latest_release() {
     local auth=()
     if [[ -s /run/secrets/gh_token ]]; then
         auth=(-H "Authorization: Bearer $(cat /run/secrets/gh_token)")
     fi
-    curl -fsSL --retry 3 "${auth[@]}" "https://api.github.com/repos/$1/releases/latest"
+    curl -fsSL --retry 3 --retry-all-errors "${auth[@]}" "https://api.github.com/repos/$1/releases/latest"
 }
 
 # Compile the dconf defaults dropped into /etc/dconf/db/local.d/ (power
@@ -244,7 +248,7 @@ dnf5 install -y "${PROTON_BRIDGE_URL}"
 # the package has no scriptlets at all and installs entirely under /usr. If
 # a later release adds a %post that needs a live system, add
 # --setopt=tsflags=noscripts like Libation/Zoom above.
-PROTON_MAIL_RELEASE=$(curl -fsSL --retry 3 https://proton.me/download/mail/linux/version.json \
+PROTON_MAIL_RELEASE=$(curl -fsSL --retry 3 --retry-all-errors https://proton.me/download/mail/linux/version.json \
     | python3 -I -c '
 import json, sys
 stable = [r for r in json.load(sys.stdin)["Releases"]
@@ -257,7 +261,7 @@ if not rpms:
     sys.exit("Proton Mail: no rpm file in Stable release " + release["Version"])
 print(rpms[0]["Url"], rpms[0]["Sha512CheckSum"])')
 read -r PROTON_MAIL_URL PROTON_MAIL_SHA512 <<< "${PROTON_MAIL_RELEASE}"
-curl -fsSL --retry 3 -o /tmp/ProtonMail-desktop.rpm "${PROTON_MAIL_URL}"
+curl -fsSL --retry 3 --retry-all-errors -o /tmp/ProtonMail-desktop.rpm "${PROTON_MAIL_URL}"
 echo "${PROTON_MAIL_SHA512}  /tmp/ProtonMail-desktop.rpm" | sha512sum --check -
 dnf5 install -y --nogpgcheck /tmp/ProtonMail-desktop.rpm
 rm /tmp/ProtonMail-desktop.rpm
@@ -269,7 +273,7 @@ rm /tmp/ProtonMail-desktop.rpm
 # since /usr/local is a symlink into /var on an ostree system. Use the
 # default linux/x64 build: Proton documents a linux/x64-baseline variant for
 # CPUs without AVX2, but this laptop (12th Gen Intel) has AVX2.
-PROTON_DRIVE_RELEASE=$(curl -fsSL --retry 3 https://proton.me/download/drive/cli/version.json \
+PROTON_DRIVE_RELEASE=$(curl -fsSL --retry 3 --retry-all-errors https://proton.me/download/drive/cli/version.json \
     | python3 -I -c '
 import json, sys
 stable = [r for r in json.load(sys.stdin)["Releases"] if r["CategoryName"] == "Stable"]
@@ -281,7 +285,7 @@ if not files:
     sys.exit("Proton Drive CLI: no linux/x64 file in Stable release " + release["Version"])
 print(files[0]["Url"], files[0]["Sha512CheckSum"])')
 read -r PROTON_DRIVE_URL PROTON_DRIVE_SHA512 <<< "${PROTON_DRIVE_RELEASE}"
-curl -fsSL --retry 3 -o /tmp/proton-drive "${PROTON_DRIVE_URL}"
+curl -fsSL --retry 3 --retry-all-errors -o /tmp/proton-drive "${PROTON_DRIVE_URL}"
 echo "${PROTON_DRIVE_SHA512}  /tmp/proton-drive" | sha512sum --check -
 install -m 0755 /tmp/proton-drive /usr/bin/proton-drive
 rm /tmp/proton-drive
