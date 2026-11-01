@@ -12,3 +12,6 @@ Branch=stable
 
 [Flatpak Preinstall tv.plex.PlexDesktop]
 Branch=stable
+
+[Flatpak Preinstall com.calibre_ebook.calibre]
+Branch=stable
