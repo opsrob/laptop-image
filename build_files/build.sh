@@ -356,6 +356,24 @@ curl -fsSL -o /tmp/tflint.zip "${TFLINT_URL}"
 unzip -o /tmp/tflint.zip -d /usr/bin tflint
 rm /tmp/tflint.zip
 
+### goat - Bluesky's atproto CLI (account migration between PDSes, PLC
+### rotation keys, repo/blob export, firehose debugging). Used for the
+### @opsrob.com move to the self-hosted PDS (ansible-server, docs/
+### upgrading-self-hosted-apps.md). Latest release, the same as tflint
+### above, verified against the release's checksums file. Like the Proton
+### checksums, it comes from the same origin as the tarball, so it only
+### catches a corrupted download. The tarball is flat: goat plus its
+### licence/readme files.
+GOAT_TAG=$(gh_latest_release bluesky-social/goat \
+    | python3 -I -c 'import json, sys; print(json.load(sys.stdin)["tag_name"])')
+GOAT_BASE="https://github.com/bluesky-social/goat/releases/download/${GOAT_TAG}"
+curl -fsSL --retry 3 --retry-all-errors -o /tmp/goat_Linux_x86_64.tar.gz "${GOAT_BASE}/goat_Linux_x86_64.tar.gz"
+curl -fsSL --retry 3 --retry-all-errors -o /tmp/goat_checksums.txt "${GOAT_BASE}/goat_${GOAT_TAG#v}_checksums.txt"
+(cd /tmp && grep ' goat_Linux_x86_64\.tar\.gz$' goat_checksums.txt | sha256sum --check -)
+tar -xzf /tmp/goat_Linux_x86_64.tar.gz -C /tmp goat
+install -m 0755 /tmp/goat /usr/bin/goat
+rm /tmp/goat /tmp/goat_Linux_x86_64.tar.gz /tmp/goat_checksums.txt
+
 ### aws-cli - the old Ansible task's `install.sh | bash -s -- --system`
 ### only supports two install modes: --system (hardcoded to
 ### /usr/local/aws-cli + /usr/local/bin, unusable at build time, same class
