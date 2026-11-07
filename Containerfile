@@ -8,7 +8,10 @@ COPY system_files /system_files
 # volunteer-run "Bluefin Classic" and lags Fedora releases - see
 # https://github.com/ublue-os/bluefin/discussions/4951). Anything Bluefin
 # provided that this laptop needs is now added explicitly in build.sh.
-FROM quay.io/fedora/fedora-silverblue:45@sha256:a9d48e07aa5f4ce4265d9eb7ac91b615e36c51eb82018c0d6cf38eb1eb65e005
+# Deliberately NOT digest-pinned: the daily scheduled build picks up Fedora's
+# latest Silverblue 45 base (kernel, GNOME, security fixes) automatically.
+# Bump the tag by hand for each new Fedora release.
+FROM quay.io/fedora/fedora-silverblue:45
 ## Other possible base images include:
 # FROM ghcr.io/ublue-os/bazzite:stable
 # FROM ghcr.io/ublue-os/aurora:stable
