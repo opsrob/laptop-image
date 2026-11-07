@@ -29,18 +29,32 @@ dconf update
 
 ### Repo/key setup not covered by a plain .repo file in system_files/
 
-# Bluefin uses the "negativo17" multimedia repo for codecs/drivers rather
-# than RPM Fusion (confirmed from the actual build log - RPM Fusion is not
-# among the repos this base image has enabled), unlike Bazzite/Aurora which
-# is what the template's boilerplate comment above assumed. Don't add RPM
-# Fusion here on the assumption its packages are needed - check what
-# negativo17 already provides before adding anything from it explicitly.
+FEDORA_VERSION=$(rpm -E %fedora)
+
+# RPM Fusion for full codecs and hardware video. Stock Silverblue ships the
+# patent-stripped ffmpeg-free and Fedora's libva-intel-media-driver, which is
+# built without Intel's non-free kernels (that's most of the iHD encode
+# side). Bluefin used to cover this with negativo17. Swap both to the
+# RPM Fusion builds: this laptop is a Framework 12th Gen Intel (Alder Lake,
+# Iris Xe), whose VAAPI driver is iHD - the legacy i965
+# libva-intel-driver only targets Gen4-Gen7 and is deliberately not
+# installed.
+dnf5 install -y \
+    "https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-${FEDORA_VERSION}.noarch.rpm" \
+    "https://mirrors.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-${FEDORA_VERSION}.noarch.rpm"
+dnf5 swap -y ffmpeg-free ffmpeg --allowerasing
+dnf5 swap -y libva-intel-media-driver intel-media-driver --allowerasing
+dnf5 install -y \
+    gstreamer1-plugins-bad-freeworld \
+    gstreamer1-plugins-ugly \
+    gstreamer1-plugin-libav \
+    libva-utils
 
 # ProtonVPN publishes its repo config via a release RPM rather than a plain
 # .repo file; --nogpgcheck matches the original Ansible task, which also
 # disabled gpg check for this install.
 dnf5 install -y --nogpgcheck \
-    'https://repo.protonvpn.com/fedora-44-stable/protonvpn-stable-release/protonvpn-stable-release-1.0.5-1.noarch.rpm'
+    "https://repo.protonvpn.com/fedora-${FEDORA_VERSION}-stable/protonvpn-stable-release/protonvpn-stable-release-1.0.5-1.noarch.rpm"
 
 # Proton Mail Bridge is installed from a one-off release asset (not a
 # persistent repo), so its signing key needs importing explicitly first.
@@ -48,37 +62,18 @@ rpm --import https://proton.me/download/bridge/bridge_pubkey.gpg
 
 ### Install packages
 
-# --skip-unavailable: Bluefin already ships several of these (and pulls
-# more in transitively via @development-tools), and dnf5 hard-fails the
+# --skip-unavailable: some of these are already in the base image (or get
+# pulled in transitively via @development-tools), and dnf5 hard-fails the
 # *entire* transaction if any requested package is already installed -
 # skip-unavailable makes it tolerate that instead of aborting everything.
 #
-# libva-intel-driver (the legacy "i965" VAAPI driver, RPM Fusion's
-# packaging of intel/intel-vaapi-driver) intentionally dropped, not just
-# renamed: this laptop is a Framework 12th Gen Intel (Alder Lake, Iris Xe
-# graphics), and i965 only really targets Gen4-Gen7 hardware - Intel
-# deprecated it in favor of the iHD driver for Broadwell/Gen8+. Per rob:
-# it was likely leftover from past troubleshooting, not something that
-# was actually needed on this hardware. It also doesn't exist under that
-# name on Bluefin's negativo17-based repo set anyway (build failure: "No
-# match for argument").
-#
-# The correct modern driver for this hardware is the iHD one, packaged on
-# Fedora/RPM Fusion as libva-intel-media-driver (upstream/other distros
-# call it "intel-media-driver" - that exact name doesn't exist on
-# Fedora). Included below; --skip-unavailable means this is a no-op if
-# Bluefin's own build already provides equivalent hardware video
-# acceleration, which is plausible for a media/gaming-focused image -
-# confirm which is true in the VM test (Step 4 of the migration plan) via
-# `vainfo`.
-#
-# --skip-unavailable (applies to the whole list below): Bluefin already
-# ships several of these (and pulls more in transitively via
-# @development-tools), and dnf5 hard-fails the *entire* transaction if
-# any requested package is already installed - skip-unavailable makes it
-# tolerate that instead of aborting everything.
+# lm_sensors/powertop/smartmontools: laptop hardware diagnostics (temps and
+# fans, power draw, NVMe health) that Bluefin shipped and stock Silverblue
+# doesn't.
 dnf5 install -y --skip-unavailable \
-    libva-intel-media-driver \
+    lm_sensors \
+    powertop \
+    smartmontools \
     thunderbird \
     pykickstart \
     '@development-tools' \
@@ -151,20 +146,18 @@ systemctl enable me.proton.vpn.split_tunneling.service
 # bootc migration plan (~/.claude/plans/what-are-folk-using-zazzy-diffie.md,
 # Step 2B): dkms needs out-of-tree kernel modules rebuilt against the exact
 # deployed kernel, which is a different problem on an image-based system
-# than on a regular mutable install (Bluefin/ublue handle their own akmods
-# this way already - follow that pattern if a dkms module is actually
-# needed here, don't just dnf5 install dkms and hope).
+# than on a regular mutable install (build the module into the image with
+# akmods against the image's kernel if one is actually needed here, don't
+# just dnf5 install dkms and hope).
 
 # snapd is deliberately NOT installed. The old laptop's snap list
 # (zotero-snap, signal-desktop, vivaldi, libation, hugo extended, obsidian,
-# ghostty, plex-desktop) has been re-homed below: Universal Blue's supported
-# update path (`ujust update`/ublue-update) only refreshes flatpaks,
-# Homebrew, and the system image itself - snap had no update integration
-# and was only ever used here because these apps happened to be packaged
-# that way on the old laptop.
+# ghostty, plex-desktop) has been re-homed below: snap has no update
+# integration on an image-based system and was only ever used here because
+# these apps happened to be packaged that way on the old laptop.
 
-# Ghostty isn't on Flathub and doesn't resolve from Fedora's own repos on
-# this negativo17-based repo set (confirmed via dnf5 search/repoquery) - it
+# Ghostty isn't on Flathub and doesn't resolve from Fedora's own repos
+# (confirmed via dnf5 search/repoquery on the Bluefin base) - it
 # ships as source and relies on distro/community packaging. Using
 # scottames/ghostty per
 # https://copr.fedorainfracloud.org/coprs/scottames/ghostty/.
@@ -200,23 +193,28 @@ dnf5 install -y --nogpgcheck --setopt=tsflags=noscripts "${LIBATION_URL}"
 # vanishes on deploy (VM/laptop-confirmed 2026-09-17). Using flatpak's own
 # preinstall mechanism instead of a custom first-boot unit: dropping
 # .preinstall files into /etc/flatpak/preinstall.d/ (see
-# system_files/etc/flatpak/preinstall.d/) is what Bluefin itself uses for
-# its own default apps, via flatpak-preinstall.service - already enabled
-# in the base image, nothing to wire up here. It also re-syncs on every
-# boot (so adding/removing an app from this list later just works) and
-# respects a user who's deliberately uninstalled one.
+# system_files/etc/flatpak/preinstall.d/), applied by
+# flatpak-preinstall.service. It re-syncs on every boot (so adding/removing
+# an app from this list later just works) and respects a user who's
+# deliberately uninstalled one.
+#
+# Stock Silverblue ships neither the service nor a Flathub remote (Bluefin
+# provided both), so system_files/ carries them: the unit (copied from
+# Bluefin) and /etc/flatpak/remotes.d/flathub.flatpakrepo, unfiltered. The
+# Fedora OCI flatpak remote that Silverblue adds on first boot is disabled
+# so apps keep coming from Flathub only, as they did on Bluefin.
+systemctl enable flatpak-preinstall.service
+systemctl disable flatpak-add-fedora-repos.service
 
 # Power defaults: performance mode, battery percentage shown, no
 # auto-suspend when plugged in (other power settings left at their
 # distro default). show-battery-percentage and sleep-inactive-ac-type are
 # plain dconf keys, handled above via system_files/etc/dconf/db/local.d/ +
-# `dconf update`. The Performance power-profile-daemon profile can't be
-# set that way though - powerprofilesctl talks to the live system D-Bus,
-# which doesn't exist during a container build (same class of problem as
-# the flatpak installs below), and power-profiles-daemon persists its
-# active profile to /var/lib/power-profiles-daemon/state.ini, which isn't
-# part of the image commit either. No preinstall.d-style mechanism exists
-# for power-profiles-daemon, so this uses the same first-boot-unit pattern
+# `dconf update`. The Performance power profile can't be set that way
+# though - it's set over the live system D-Bus (tuned-ppd), which doesn't
+# exist during a container build (same class of problem as the flatpak
+# installs above). No preinstall.d-style mechanism exists for power
+# profiles, so this uses the same first-boot-unit pattern
 # the flatpak installs originally used (see
 # system_files/usr/lib/systemd/system/laptop-image-power-defaults.service
 # and system_files/usr/libexec/).
@@ -429,6 +427,21 @@ systemctl --global enable cloudfront-logs-pull@opsrob.timer cloudfront-logs-pull
 
 ### Plymouth theme
 plymouth-set-default-theme details -R
+
+### Hardware: Realtek USB 2.5G ethernet (0bda:8156, in the Dell TB4 dock)
+### is pinned to USB config 1 (r8152 driver, not cdc_ncm) by
+### system_files/usr/lib/udev/rules.d/50-usb-realtek-net.rules, copied from
+### ublue-os/config - Bluefin shipped it, Silverblue doesn't. Framework 12th
+### Gen kernel args live in system_files/usr/lib/bootc/kargs.d/.
+
+### Automatic image updates. Bluefin did this with its own uupd.timer;
+### stock Silverblue ships with automatic updates off. "stage" downloads and
+### stages new images in the background, applied on the next (user-chosen)
+### reboot - same policy the Bluefin deployment reported. Flatpak updates
+### are handled by GNOME Software.
+sed -i 's/^#\?AutomaticUpdatePolicy=.*/AutomaticUpdatePolicy=stage/' /etc/rpm-ostreed.conf
+grep -qx 'AutomaticUpdatePolicy=stage' /etc/rpm-ostreed.conf
+systemctl enable rpm-ostreed-automatic.timer
 
 #### Example for enabling a System Unit File
 

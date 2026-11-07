@@ -1,6 +1,11 @@
 [hashicorp]
 name=Hashicorp Channel
-baseurl=https://rpm.releases.hashicorp.com/fedora/$releasever/$basearch/stable
+# Pinned to 44, not $releasever: HashiCorp had no fedora/45 repo when the
+# image moved to Silverblue 45 (404, and --skip-unavailable silently
+# dropped terraform). Its packages are static Go binaries, so the f44
+# builds run fine on 45. Switch back to $releasever once
+# https://rpm.releases.hashicorp.com/fedora/45/ exists.
+baseurl=https://rpm.releases.hashicorp.com/fedora/44/$basearch/stable
 enabled=1
 gpgcheck=1
 # repo_gpgcheck=1 (the original default) makes dnf5 prompt interactively

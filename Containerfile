@@ -4,7 +4,11 @@ COPY build_files /
 COPY system_files /system_files
 
 # Base Image
-FROM ghcr.io/ublue-os/bluefin:stable@sha256:46ad2d6e69498517c8734be5872b928a30c7cedf505b46b18ac002d82f35e9eb
+# Fedora Silverblue (moved off Bluefin 2026-11: ublue-os/bluefin became the
+# volunteer-run "Bluefin Classic" and lags Fedora releases - see
+# https://github.com/ublue-os/bluefin/discussions/4951). Anything Bluefin
+# provided that this laptop needs is now added explicitly in build.sh.
+FROM quay.io/fedora/fedora-silverblue:45@sha256:a9d48e07aa5f4ce4265d9eb7ac91b615e36c51eb82018c0d6cf38eb1eb65e005
 ## Other possible base images include:
 # FROM ghcr.io/ublue-os/bazzite:stable
 # FROM ghcr.io/ublue-os/aurora:stable
