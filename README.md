@@ -1,318 +1,156 @@
-# image-template
+# laptop-image
 
-This repository is meant to be a template for building your own custom [bootc](https://github.com/bootc-dev/bootc) image. This template is the recommended way to make customizations to any image published by the Universal Blue Project.
+A custom [bootc](https://bootc.dev/) image for my laptop (Framework, 12th Gen Intel), built on [Fedora Silverblue](https://fedoraproject.org/atomic-desktops/silverblue/) 45. GitHub Actions rebuilds it every day on top of the latest Silverblue base, then signs it and publishes it to `ghcr.io/opsrob/laptop-image:latest`. The laptop stages each new build in the background and switches to it on the next reboot.
 
-# Community
+Everything the old Ansible playbook installed on a mutable Fedora system is built into the image instead. Dotfiles are not: they're managed separately with [chezmoi](https://www.chezmoi.io/).
 
-If you have questions about this template after following the instructions, try the following spaces:
-- [Universal Blue Forums](https://universal-blue.discourse.group/)
-- [Universal Blue Discord](https://discord.gg/WEu6BdFEtp)
-- [bootc discussion forums](https://github.com/bootc-dev/bootc/discussions) - This is not an Universal Blue managed space, but is an excellent resource if you run into issues with building bootc images.
+## Using the image
 
-# How to Use
+### Switching an existing Silverblue install
 
-To get started on your first bootc image, simply read and follow the steps in the next few headings.
-If you prefer instructions in video form, TesterTech created an excellent tutorial, embedded below.
-
-[![Video Tutorial](https://img.youtube.com/vi/IxBl11Zmq5w/0.jpg)](https://www.youtube.com/watch?v=IxBl11Zmq5wE)
-
-## Step 0: Prerequisites
-
-These steps assume you have the following:
-- A Github Account
-- A machine running a bootc image (e.g. Bazzite, Bluefin, Aurora, or Fedora Atomic)
-- Experience installing and using CLI programs
-
-## Step 1: Preparing the Template
-
-### Step 1a: Copying the Template
-
-Select `Use this Template` on this page. You can set the name and description of your repository to whatever you would like, but all other settings should be left untouched.
-
-Once you have finished copying the template, you need to enable the Github Actions workflows for your new repository.
-To enable the workflows, go to the `Actions` tab of the new repository and click the button to enable workflows.
-
-### Step 1b: Cloning the New Repository
-
-Here I will defer to the much superior GitHub documentation on the matter. You can use whichever method is easiest.
-[GitHub Documentation](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository)
-
-Once you have the repository on your local drive, proceed to the next step.
-
-## Step 2: Initial Setup
-
-### Step 2a: Creating a Cosign Key
-
-Container signing is important for end-user security and is enabled on all Universal Blue images. By default the image builds *will fail* if you don't.
-
-First, install the [cosign CLI tool](https://edu.chainguard.dev/open-source/sigstore/cosign/how-to-install-cosign/#installing-cosign-with-the-cosign-binary)
-With the cosign tool installed, run inside your repo folder:
+From any Fedora Atomic / bootc system:
 
 ```bash
-COSIGN_PASSWORD="" cosign generate-key-pair
+sudo bootc switch ghcr.io/opsrob/laptop-image:latest
+systemctl reboot
 ```
 
-The signing key will be used in GitHub Actions and will not work if it is password protected.
+### Fresh install
 
-> [!WARNING]
-> Be careful to *never* accidentally commit `cosign.key` into your git repo. If this key goes out to the public, the security of your repository is compromised.
+Run the **Build disk images** workflow (Actions → Build disk images → Run workflow) to produce an Anaconda installer ISO and a qcow2 VM image. Both are uploaded as job artifacts, or to S3 if you tick *Upload to S3* (that needs the `S3_*` repository secrets). The installer's kickstart (`disk_config/iso.toml`) points the new install at `ghcr.io/opsrob/laptop-image:latest`, so later updates come from the registry.
 
-Next, you need to add the key to GitHub. This makes use of GitHub's secret signing system.
+### Updates and rollback
 
-<details>
-    <summary>Using the Github Web Interface (preferred)</summary>
+- `rpm-ostreed-automatic.timer` runs with `AutomaticUpdatePolicy=stage`. New images are downloaded and staged in the background and take effect on the next reboot, whenever you choose to reboot.
+- GNOME Software handles Flatpak updates.
+- Common commands:
 
-Go to your repository settings, under `Secrets and Variables` -> `Actions`
-![image](https://user-images.githubusercontent.com/1264109/216735595-0ecf1b66-b9ee-439e-87d7-c8cc43c2110a.png)
-Add a new secret and name it `SIGNING_SECRET`, then paste the contents of `cosign.key` into the secret and save it. Make sure it's the .key file and not the .pub file. Once done, it should look like this:
-![image](https://user-images.githubusercontent.com/1264109/216735690-2d19271f-cee2-45ac-a039-23e6a4c16b34.png)
-</details>
-<details>
-<summary>Using the Github CLI</summary>
+  ```bash
+  bootc status              # booted, staged and rollback images
+  sudo bootc upgrade        # fetch and stage the latest image now
+  sudo bootc rollback       # boot the previous image next time
+  ```
 
-If you have the `github-cli` installed, run:
+### Verifying the signature
+
+Published images are signed with cosign. The public key is `cosign.pub` in this repo:
 
 ```bash
-gh secret set SIGNING_SECRET < cosign.key
+cosign verify --key cosign.pub ghcr.io/opsrob/laptop-image:latest
 ```
-</details>
 
-### Step 2b: Choosing Your Base Image
+## What's in the image
 
-To choose a base image, simply modify the line in the container file starting with `FROM`. This will be the image your image derives from, and is your starting point for modifications.
-For a base image, you can choose any of the Universal Blue images or start from a Fedora Atomic system. Below this paragraph is a dropdown with a non-exhaustive list of potential base images.
+The base is `quay.io/fedora/fedora-silverblue:45`, tracked by tag rather than digest so the daily build always picks up Fedora's latest base. Everything below is added in [`build_files/build.sh`](build_files/build.sh), which also comments on why each workaround is there.
 
-<details>
-    <summary>Base Images</summary>
+**Codecs and hardware video:** RPM Fusion (free and nonfree), with full `ffmpeg` and `intel-media-driver` (iHD VAAPI) replacing Fedora's patent-stripped builds, plus the GStreamer freeworld/ugly/libav plugins.
 
-- Bazzite: `ghcr.io/ublue-os/bazzite:stable`
-- Aurora: `ghcr.io/ublue-os/aurora:stable`
-- Bluefin: `ghcr.io/ublue-os/bluefin:stable`
-- Universal Blue Base: `ghcr.io/ublue-os/base-main:latest`
-- Fedora: `quay.io/fedora/fedora-bootc:44`
+**Third-party repos:** VS Code, 1Password, HashiCorp, Google Chrome (plain `.repo` files in `system_files/`), ProtonVPN (release RPM), OpenTofu (official install script) and the `scottames/ghostty` COPR.
 
-You can find more Universal Blue images on the [packages page](https://github.com/orgs/ublue-os/packages).
-</details>
+**Packages:** development tools, Python, Go, Node 24, Java 25, VS Code, Terraform/OpenTofu, `gh`, chezmoi, age, Ghostty, Chrome, 1Password, Thunderbird, GIMP, Inkscape, Audacity, VLC, qBittorrent, GNOME Boxes, ProtonVPN, and hardware diagnostics (`lm_sensors`, `powertop`, `smartmontools`, `inxi`, `hwinfo`, …).
 
-If you don't know which image to pick, choosing the one your system is currently on is the best bet for a smooth transition. To find out what image your system currently uses, run the following command:
-```bash
-sudo bootc status
-```
-This will show you all the info you need to know about your current image. The image you are currently on is displayed after `Booted image:`. Paste that information after the `FROM` statement in the Containerfile to set it as your base image.
+**Vendor releases, always the latest at build time:**
 
-### Step 2c: Changing Names
+| Software | Source |
+| --- | --- |
+| Proton Mail Bridge | GitHub release RPM, signature checked against Proton's key |
+| Proton Mail desktop | Proton's `version.json`, SHA512 checked |
+| Proton Drive CLI | Proton's `version.json`, SHA512 checked |
+| Libation | GitHub release RPM |
+| Ente Photos | GitHub release RPM |
+| Zoom | zoom.us RPM |
+| tflint | GitHub release zip |
+| goat (Bluesky atproto CLI) | GitHub release, checksum checked |
+| AWS CLI v2 | AWS installer zip |
+| aws-cdk, dnspython, virtualenv | npm / pip into `/usr` |
 
-Change the `IMAGE_NAME` and `REPO_ORGANIZATION` variable inside the `image-template.env`
+**Flatpaks** (from Flathub, via [`flatpak-preinstall.service`](system_files/usr/lib/systemd/system/flatpak-preinstall.service) and [`laptop-image.preinstall`](system_files/etc/flatpak/preinstall.d/laptop-image.preinstall)): Zotero, Signal, Vivaldi, Obsidian, Plex, Calibre. The preinstall list is re-applied on every boot. Silverblue's Fedora Flatpak remote is disabled, so apps come only from Flathub.
 
-To commit and push all the files changed and added in step 2 into your Github repository:
-```bash
-git add Containerfile image-template.env cosign.pub
-git commit -m "Initial Setup"
-git push
-```
-Once pushed, go look at the Actions tab on your Github repository's page.  The green checkmark should be showing on the top commit, which means your new image is ready!
+**System configuration** (all under [`system_files/`](system_files/)):
 
-## Step 3: Switch to Your Image
+- Kernel args for the Framework (`nvme.noacpi=1`, `i915.enable_psr=0`, `module_blacklist=hid_sensor_hub`), in `usr/lib/bootc/kargs.d/`
+- Power defaults: the Performance profile is set on first boot by `laptop-image-power-defaults.service`; battery percentage is shown and the laptop never auto-suspends on AC (set through dconf)
+- A udev rule that keeps the dock's Realtek 2.5G USB NIC on the `r8152` driver
+- Daily user timers that pull CloudFront logs (`cloudfront-logs-pull@{opsrob,dontcall}.timer`). The scripts and credentials they use come from the dotfiles, not the image
+- A bind mount that makes `/opt/IDriveForLinux` writable for IDrive
+- Automatic staged updates, `podman.socket`, `crond`, and the Plymouth `details` theme
 
-From your bootc system, run the following command substituting in your Github username and image name where noted.
-```bash
-sudo bootc switch ghcr.io/<username>/<image_name>
-```
-This should queue your image for the next reboot, which you can do immediately after the command finishes. You have officially set up your custom image! See the following section for an explanation of the important parts of the template for customization.
+### Not in the image, by design
 
-# Repository Contents
+- **Dotfiles:** managed with chezmoi.
+- **IDrive:** installed by hand after boot into the writable bind mount. The steps are in [`opt-IDriveForLinux.mount`](system_files/usr/lib/systemd/system/opt-IDriveForLinux.mount).
+- **hugo:** installed with Homebrew from the dotfiles.
+- **snapd, dkms/out-of-tree kernel modules:** left out deliberately; `build.sh` explains why.
 
-## Containerfile
+## Repository layout
 
-The [Containerfile](./Containerfile) defines the operations used to customize the selected image.This file is the entrypoint for your image build, and works exactly like a regular podman Containerfile. For reference, please see the [Podman Documentation](https://docs.podman.io/en/latest/Introduction.html).
+| Path | Purpose |
+| --- | --- |
+| [`Containerfile`](Containerfile) | Base image, makes `/opt` part of the image, runs `build.sh`, runs `bootc container lint` |
+| [`build_files/build.sh`](build_files/build.sh) | All package installs and image configuration |
+| [`system_files/`](system_files/) | Copied over `/` at build time: repo files, systemd units, dconf, udev, kargs |
+| [`disk_config/`](disk_config/) | bootc-image-builder configs for the ISO (`iso.toml`) and qcow2/raw (`disk.toml`) |
+| [`image-template.env`](image-template.env) | Image name, organisation and metadata labels |
+| [`.github/workflows/build.yml`](.github/workflows/build.yml) | Daily, push and PR image build; push and sign on `main` |
+| [`.github/workflows/build-disk.yml`](.github/workflows/build-disk.yml) | Manual ISO/qcow2 build |
+| [`cosign.pub`](cosign.pub) | Public key for verifying image signatures |
 
-## build.sh
+## CI
 
-The [build.sh](./build_files/build.sh) file is called from your Containerfile. It is the best place to install new packages or make any other customization to your system. There are customization examples contained within it for your perusal.
+[`build.yml`](.github/workflows/build.yml) runs:
 
-## build.yml
+- every day at 10:05 UTC,
+- on every push to `main` (README-only changes don't trigger it),
+- on pull requests,
+- and on demand.
 
-The [build.yml](./.github/workflows/build.yml) Github Actions workflow creates your custom OCI image and publishes it to the Github Container Registry (GHCR). By default, the image name will match the Github repository name.
+It builds the image, rechunks it with rpm-ostree so updates download as smaller deltas, then tags it `latest`, `latest-<YYYYMMDD>` and `<YYYYMMDD>`, plus variants with the short git SHA (`latest-<sha>`, `<YYYYMMDD>-<sha>`, …). Pull requests are built but never pushed or signed. On `main`, the image is pushed to GHCR and signed with the cosign private key stored in the `SIGNING_SECRET` repository secret.
 
-# Building Disk Images
+The build's GitHub release lookups use the workflow's `GITHUB_TOKEN`, passed in as a build secret, to avoid api.github.com rate limits.
 
-This template provides an out of the box workflow for creating disk images (ISO, qcow, raw) for your custom OCI image which can be used to directly install onto your machines.
+Dependency updates:
 
-This template provides a way to upload the disk images that is generated from the workflow to a S3 bucket. The disk images will also be available as an artifact from the job, if you wish to use an alternate provider. To upload to S3 we use [rclone](https://rclone.org/) which is able to use [many S3 providers](https://rclone.org/s3/).
+- Dependabot opens PRs for GitHub Actions, and `dependabot-automerge.yml` turns on auto-merge for minor and patch bumps, so they merge once the PR build passes. That needs branch protection on `main`; without it the job fails and the PR has to be merged by hand.
+- Renovate keeps action digests pinned and is configured not to digest-pin the Silverblue base.
 
-## Setting Up ISO Builds
+## Building and testing locally
 
-The [build-disk.yml](./.github/workflows/build-disk.yml) Github Actions workflow creates a disk image from your OCI image by utilizing the [bootc-image-builder](https://osbuild.org/docs/bootc/). In order to use this workflow you must complete the following steps:
-
-1. Modify `disk_config/iso.toml` to point to your custom container image before generating an ISO image.
-2. If you changed your image name from the default in `build.yml` then in the `build-disk.yml` file edit the `IMAGE_REGISTRY`, `IMAGE_NAME` and `DEFAULT_TAG` environment variables with the correct values. If you did not make changes, skip this step.
-3. Finally, if you want to upload your disk images to S3 then you will need to add your S3 configuration to the repository's Action secrets. This can be found by going to your repository settings, under `Secrets and Variables` -> `Actions`. You will need to add the following
-  - `S3_PROVIDER` - Must match one of the values from the [supported list](https://rclone.org/s3/)
-  - `S3_BUCKET_NAME` - Your unique bucket name
-  - `S3_ACCESS_KEY_ID` - It is recommended that you make a separate key just for this workflow
-  - `S3_SECRET_ACCESS_KEY` - See above.
-  - `S3_REGION` - The region your bucket lives in. If you do not know then set this value to `auto`.
-  - `S3_ENDPOINT` - This value will be specific to the bucket as well.
-
-Once the workflow is done, you'll find the disk images either in your S3 bucket or as part of the summary under `Artifacts` after the workflow is completed.
-
-# Artifacthub
-
-This template comes with the necessary tooling to index your image on [artifacthub.io](https://artifacthub.io). Use the `artifacthub-repo.yml` file at the root to verify yourself as the publisher. This is important to you for a few reasons:
-
-- The value of artifacthub is it's one place for people to index their custom images, and since we depend on each other to learn, it helps grow the community. 
-- You get to see your pet project listed with the other cool projects in Cloud Native.
-- Since the site puts your README front and center, it's a good way to learn how to write a good README, learn some marketing, finding your audience, etc. 
-
-[Discussion Thread](https://universal-blue.discourse.group/t/listing-your-custom-image-on-artifacthub/6446)
-
-# Justfile Documentation
-
-The `Justfile` contains various commands and configurations for building and managing container images and virtual machine images using Podman and other utilities. It is also used inside Github Actions.
-
-## Required Utilities
-
-Container build:
-- [just](https://just.systems/man/en/introduction.html)
-- [podman](https://docs.podman.io/en/latest)
-- [jq](https://jqlang.org)
-
-These are usually preinstalled on Universal Blue's Bootc Images.
-
-Linting:
-- shfmt
-- shellcheck
-
-## Environment Variables
-
-These are all sourced from the `image-template.env` file.
-
-- `image_name`: The name of the image (default: "image-template").
-- `default_tag`: The default tag for the image (default: "latest").
-- `bib_image`: The Bootc Image Builder (BIB) image (default: "quay.io/centos-bootc/bootc-image-builder:latest").
-
-## Building The Image
-
-All these recipes will work (with default values) without supplying any arguments to them, e.g. `just build`
-
-### `just build`
-
-Builds a container image using Podman.
+Build with podman from the repo root. The secret is optional; it only avoids GitHub API rate limits:
 
 ```bash
-just build $target_image $tag
+GITHUB_TOKEN=$(gh auth token) \
+  podman build --pull=newer --secret id=gh_token,env=GITHUB_TOKEN \
+    -t localhost/laptop-image:latest -f Containerfile .
 ```
 
-Arguments:
-- `$target_image`: The tag you want to apply to the image (default: `$image_name`).
-- `$tag`: The tag for the image (default: `$default_tag`).
-
-### Rechunking
-We can flatten the layers of container images to make sure there isn't a single huge layer when your image gets published.
-This does not make your image faster to download, just provides better resumability.
-
-#### `just ostree-rechunk`
-Rechunks the existing Image with [rpm-ostree](https://coreos.github.io/rpm-ostree/build-chunked-oci/)
+To boot a local build, it has to be in root's container storage. Build it with `sudo podman build …` (same arguments), or copy it across with `podman image scp`. Then:
 
 ```bash
-just ostree-rechunk $target_image $tag
+sudo bootc switch --transport containers-storage localhost/laptop-image:latest
+systemctl reboot
 ```
 
-#### `just rechunk`
-Rechunks the existing Image with [chunkah](https://github.com/coreos/chunkah), this is probably gonna be the default here at some point, try it out, it's cool.
+Switch back to the published image with `sudo bootc switch ghcr.io/opsrob/laptop-image:latest`.
+
+To try it in a VM first, build a qcow2 with [bootc-image-builder](https://osbuild.org/docs/bootc/):
 
 ```bash
-just rechunk $target_image $tag
+mkdir -p output
+sudo podman run --rm -it --privileged --pull=newer \
+  --security-opt label=type:unconfined_t \
+  -v ./disk_config/disk.toml:/config.toml:ro \
+  -v ./output:/output \
+  -v /var/lib/containers/storage:/var/lib/containers/storage \
+  quay.io/centos-bootc/bootc-image-builder:latest \
+  --type qcow2 --use-librepo=True localhost/laptop-image:latest
 ```
 
-### Switching to the locally built image for testing
+Then open `output/qcow2/disk.qcow2` in GNOME Boxes or `virt-install`.
 
-The image has to be in the containers-storage owned by root, to be able to rebase to it, see the `_rootful_load_image` recipe.
+## Maintenance notes
 
-`sudo just build` and `sudo just ostree-rechunk` builds directly as root and allows you to skip the transfer to the root containers-storage.
-
-You can rebase to all the images that are in your containers-storage:
-
-```
-sudo podman image list --filter=label=containers.bootc=1
-```
-
-See [man bootc switch](https://bootc.dev/bootc/man/bootc-switch.8.html) for more info.
-
-```
-sudo bootc switch --transport containers-storage localhost/myimage:latest
-```
-
-and reboot your system!
-
-## Building and Running Virtual Machines and ISOs
-
-The below commands all build QCOW2 images. To produce or use a different type of image, substitute in the command with that type in the place of `qcow2`. The available types are `qcow2`, `iso`, and `raw`.
-
-### `just build-qcow2`
-
-Builds a QCOW2 virtual machine image.
-
-```bash
-just build-qcow2 $target_image $tag
-```
-
-### `just rebuild-qcow2`
-
-Rebuilds a QCOW2 virtual machine image.
-
-```bash
-just rebuild-vm $target_image $tag
-```
-
-### `just run-vm-qcow2`
-
-Runs a virtual machine from a QCOW2 image.
-
-```bash
-just run-vm-qcow2 $target_image $tag
-```
-
-### `just spawn-vm`
-
-Runs a virtual machine using systemd-vmspawn.
-
-```bash
-just spawn-vm rebuild="0" type="qcow2" ram="6G"
-```
-
-## File Management
-
-### `just check`
-
-Checks the syntax of all `.just` files and the `Justfile`.
-
-### `just fix`
-
-Fixes the syntax of all `.just` files and the `Justfile`.
-
-### `just clean`
-
-Cleans the repository by removing build artifacts.
-
-### `just lint`
-
-Runs shell check on all Bash scripts.
-
-### `just format`
-
-Runs shfmt on all Bash scripts.
-
-## Additional resources
-
-For additional driver support, ublue maintains a set of scripts and container images available at [ublue-akmod](https://github.com/ublue-os/akmods). These images include the necessary scripts to install multiple kernel drivers within the container (Nvidia, OpenRazer, Framework...). The documentation provides guidance on how to properly integrate these drivers into your container image.
-
-## Community Examples
-
-These are images derived from this template (or similar enough to this template). Reference them when building your image!
-
-- [m2Giles' OS](https://github.com/m2giles/m2os)
-- [bOS](https://github.com/bsherman/bos)
-- [Homer](https://github.com/bketelsen/homer/)
-- [Amy OS](https://github.com/astrovm/amyos)
-- [VeneOS](https://github.com/Venefilyn/veneos)
+- **New Fedora release:** bump the tag in `Containerfile` (`fedora-silverblue:45` → `46`). Check that the versioned package names in `build.sh` (`nodejs24`, `java-25-openjdk-headless`) still exist, and that the ProtonVPN release RPM URL has a directory for the new release.
+- **Adding a Flatpak:** add a `[Flatpak Preinstall <app-id>]` entry to `system_files/etc/flatpak/preinstall.d/laptop-image.preinstall`.
+- **Vendor RPMs with scriptlets:** a `%post` that expects a running system (D-Bus, sysctl, desktop database) fails the whole `dnf5` transaction in a container build. Install those with `--setopt=tsflags=noscripts` and redo any step that's actually needed explicitly, as `build.sh` does for ProtonVPN and Libation.
+- **Anything under `/var`** (Flatpak installs, `/usr/local`, keyring trust) doesn't carry over from the build into a deployed system. Put it in `/usr` or `/etc`, or do it on first boot with a systemd unit.
+- **Known issue, Fedora 45:** the Secret Service is oo7-daemon (a 0.7.0 beta), which has a race ([oo7#652](https://github.com/linux-credentials/oo7/issues/652)) that makes Proton Bridge's keychain self-test fail with "Bridge failed to start". Workaround: set `"DisableTest": true` in `~/.config/protonmail/bridge-v3/keychain.json` until Fedora ships oo7 0.7.1 or later.
