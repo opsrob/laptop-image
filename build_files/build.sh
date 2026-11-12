@@ -8,7 +8,7 @@ cp -avf "/ctx/system_files"/. /
 
 # Unauthenticated api.github.com calls share the runner's IP-wide rate limit
 # (60/hr) and intermittently 403 the nightly build. Use the token mounted as
-# a build secret (see Containerfile / `just build`) when there is one.
+# a build secret (see Containerfile / ci/build-image.sh) when there is one.
 #
 # Every `curl --retry 3` in this script also passes --retry-all-errors: plain
 # --retry only covers timeouts and HTTP 408/429/5xx, so a connection reset
