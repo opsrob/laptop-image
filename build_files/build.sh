@@ -74,7 +74,11 @@ rpm --import https://proton.me/download/bridge/bridge_pubkey.gpg
 # fuse-libs: libfuse.so.2. Silverblue only ships fuse3, but AppImages built
 # with the older dynamically linked runtime (StintBox among them) dlopen()
 # libfuse2 to mount themselves and fail without it.
+# fuse: provides /usr/bin/fusermount, the setuid helper libfuse2 execs to do
+# the actual mount. fuse3 only ships fusermount3, so without this AppImages
+# die with "fuse: failed to exec fusermount".
 dnf5 install -y --skip-unavailable \
+    fuse \
     fuse-libs \
     lm_sensors \
     powertop \
