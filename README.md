@@ -47,7 +47,7 @@ The base is `quay.io/fedora/fedora-silverblue:45`, tracked by tag rather than di
 
 **Third-party repos:** VS Code, 1Password, HashiCorp, Google Chrome (plain `.repo` files in `system_files/`), ProtonVPN (release RPM), OpenTofu (official install script) and the `scottames/ghostty` COPR.
 
-**Packages:** development tools, Python, Go, Node 24, Java 25, VS Code, Terraform/OpenTofu, `gh`, chezmoi, age, Ghostty, Chrome, 1Password, Thunderbird, GIMP, Inkscape, Audacity, VLC, qBittorrent, GNOME Boxes, ProtonVPN, and hardware diagnostics (`lm_sensors`, `powertop`, `smartmontools`, `inxi`, `hwinfo`, …).
+**Packages:** development tools, Python, Go, Node 24, Java 25, VS Code, Terraform/OpenTofu, `gh`, chezmoi, age, Ghostty, Chrome, 1Password, Thunderbird, GIMP, Inkscape, Audacity, VLC, qBittorrent, GNOME Boxes, ProtonVPN, `fuse-libs` (libfuse2, so AppImages run), and hardware diagnostics (`lm_sensors`, `powertop`, `smartmontools`, `inxi`, `hwinfo`, …).
 
 **Vendor releases, always the latest at build time:**
 
@@ -64,7 +64,7 @@ The base is `quay.io/fedora/fedora-silverblue:45`, tracked by tag rather than di
 | AWS CLI v2 | AWS installer zip |
 | aws-cdk, dnspython, virtualenv | npm / pip into `/usr` |
 
-**Flatpaks** (from Flathub, via [`flatpak-preinstall.service`](system_files/usr/lib/systemd/system/flatpak-preinstall.service) and [`laptop-image.preinstall`](system_files/etc/flatpak/preinstall.d/laptop-image.preinstall)): Zotero, Signal, Vivaldi, Obsidian, Plex, Calibre. The preinstall list is re-applied on every boot. Silverblue's Fedora Flatpak remote is disabled, so apps come only from Flathub.
+**Flatpaks** (from Flathub, via [`flatpak-preinstall.service`](system_files/usr/lib/systemd/system/flatpak-preinstall.service) and [`laptop-image.preinstall`](system_files/etc/flatpak/preinstall.d/laptop-image.preinstall)): Zotero, Signal, Vivaldi, Obsidian, Plex, Calibre, Gear Lever (AppImage manager). The preinstall list is re-applied on every boot. Silverblue's Fedora Flatpak remote is disabled, so apps come only from Flathub.
 
 **System configuration** (all under [`system_files/`](system_files/)):
 

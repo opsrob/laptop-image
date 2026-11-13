@@ -15,3 +15,6 @@ Branch=stable
 
 [Flatpak Preinstall com.calibre_ebook.calibre]
 Branch=stable
+
+[Flatpak Preinstall it.mijorus.gearlever]
+Branch=stable

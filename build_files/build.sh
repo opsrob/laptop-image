@@ -70,7 +70,12 @@ rpm --import https://proton.me/download/bridge/bridge_pubkey.gpg
 # lm_sensors/powertop/smartmontools: laptop hardware diagnostics (temps and
 # fans, power draw, NVMe health) that Bluefin shipped and stock Silverblue
 # doesn't.
+#
+# fuse-libs: libfuse.so.2. Silverblue only ships fuse3, but AppImages built
+# with the older dynamically linked runtime (StintBox among them) dlopen()
+# libfuse2 to mount themselves and fail without it.
 dnf5 install -y --skip-unavailable \
+    fuse-libs \
     lm_sensors \
     powertop \
     smartmontools \
