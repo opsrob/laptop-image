@@ -334,6 +334,56 @@ ENTE_URL=$(gh_latest_release ente/photos-desktop \
     | cut -d'"' -f4)
 dnf5 install -y --nogpgcheck --setopt=tsflags=noscripts "${ENTE_URL}"
 
+### OpenCode - AI coding agent, both the terminal UI (`opencode`) and the
+### Electron desktop app, from the same GitHub release. The release API
+### lists a sha256 digest for every asset, which each download is checked
+### against below. That digest comes from GitHub, the same origin as the
+### file, so like the Proton checksums it only catches a corrupted
+### download.
+OPENCODE_RELEASE=$(gh_latest_release anomalyco/opencode)
+opencode_asset() {
+    python3 -I -c '
+import json, sys
+name = sys.argv[1]
+assets = [a for a in json.load(sys.stdin)["assets"] if a["name"] == name]
+if not assets or not (assets[0].get("digest") or "").startswith("sha256:"):
+    sys.exit("OpenCode: no " + name + " asset with a sha256 digest in the latest release")
+print(assets[0]["browser_download_url"], assets[0]["digest"].removeprefix("sha256:"))' "$1" <<< "${OPENCODE_RELEASE}"
+}
+
+# Desktop app: an unsigned rpm that installs to /opt/OpenCode (fine here,
+# since the Containerfile makes /opt part of the image). Its %post does
+# update-alternatives for /usr/bin/ai.opencode.desktop, a user-namespace
+# probe (unshare) to pick the chrome-sandbox mode, desktop/mime cache
+# updates and an AppArmor profile install. The probe and alternatives
+# state (/var/lib/alternatives) don't fit a container build, so it gets
+# noscripts like Libation/Zoom. chrome-sandbox already ships as 0755,
+# which is the right mode on Fedora (user namespaces on), and the
+# .desktop entries call /opt/OpenCode directly, so the only %post step
+# redone here is the /usr/bin symlink. The app's built-in updater can't
+# install over an image-based /usr or /opt; new releases arrive with the
+# nightly image build instead.
+OPENCODE_DESKTOP=$(opencode_asset opencode-desktop-linux-x86_64.rpm)
+read -r OPENCODE_DESKTOP_URL OPENCODE_DESKTOP_SHA256 <<< "${OPENCODE_DESKTOP}"
+curl -fsSL --retry 3 --retry-all-errors -o /tmp/opencode-desktop.rpm "${OPENCODE_DESKTOP_URL}"
+echo "${OPENCODE_DESKTOP_SHA256}  /tmp/opencode-desktop.rpm" | sha256sum --check -
+dnf5 install -y --nogpgcheck --setopt=tsflags=noscripts /tmp/opencode-desktop.rpm
+ln -sf /opt/OpenCode/ai.opencode.desktop /usr/bin/ai.opencode.desktop
+rm /tmp/opencode-desktop.rpm
+
+# Terminal UI: a single Bun-compiled binary in a tarball, installed to
+# /usr/bin like proton-drive. The default x64 build needs AVX2, which this
+# laptop (12th Gen Intel) has. The CLI's self-update is turned off with
+# OPENCODE_DISABLE_AUTOUPDATE (system_files/usr/lib/environment.d/), so
+# the image controls which version is installed.
+OPENCODE_CLI=$(opencode_asset opencode-linux-x64.tar.gz)
+read -r OPENCODE_CLI_URL OPENCODE_CLI_SHA256 <<< "${OPENCODE_CLI}"
+curl -fsSL --retry 3 --retry-all-errors -o /tmp/opencode-linux-x64.tar.gz "${OPENCODE_CLI_URL}"
+echo "${OPENCODE_CLI_SHA256}  /tmp/opencode-linux-x64.tar.gz" | sha256sum --check -
+tar -xzf /tmp/opencode-linux-x64.tar.gz -C /tmp opencode
+install -m 0755 /tmp/opencode /usr/bin/opencode
+rm /tmp/opencode /tmp/opencode-linux-x64.tar.gz
+
 ### pip / npm installs
 
 # /usr/local isn't usable at build time on this image (almost certainly
