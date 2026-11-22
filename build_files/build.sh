@@ -363,11 +363,21 @@ print(assets[0]["browser_download_url"], assets[0]["digest"].removeprefix("sha25
 # redone here is the /usr/bin symlink. The app's built-in updater can't
 # install over an image-based /usr or /opt; new releases arrive with the
 # nightly image build instead.
+#
+# The rpm also ships /usr/lib/.build-id/ symlinks (debuginfo lookup only)
+# for its bundled Electron binaries. Ente bundles the same Electron, so
+# both packages claim the same build-id path for chrome-sandbox and dnf5
+# aborts with a file conflict. %_netsharedpath makes rpm skip installing
+# (and conflict-checking) anything under that path for this one
+# transaction; the macro file is removed again straight after, so later
+# installs and on-laptop rpm-ostree layering are unaffected.
 OPENCODE_DESKTOP=$(opencode_asset opencode-desktop-linux-x86_64.rpm)
 read -r OPENCODE_DESKTOP_URL OPENCODE_DESKTOP_SHA256 <<< "${OPENCODE_DESKTOP}"
 curl -fsSL --retry 3 --retry-all-errors -o /tmp/opencode-desktop.rpm "${OPENCODE_DESKTOP_URL}"
 echo "${OPENCODE_DESKTOP_SHA256}  /tmp/opencode-desktop.rpm" | sha256sum --check -
+echo '%_netsharedpath /usr/lib/.build-id' > /etc/rpm/macros.laptop-image-skip-build-id
 dnf5 install -y --nogpgcheck --setopt=tsflags=noscripts /tmp/opencode-desktop.rpm
+rm /etc/rpm/macros.laptop-image-skip-build-id
 ln -sf /opt/OpenCode/ai.opencode.desktop /usr/bin/ai.opencode.desktop
 rm /tmp/opencode-desktop.rpm
 
