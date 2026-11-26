@@ -12,6 +12,8 @@ reference (contents, CI, local builds, maintenance notes); read its
 - Merging to `main` publishes: CI builds, pushes to GHCR and cosign-signs, and the
   laptop picks it up on its next reboot. A broken build on `main` ships, so make
   sure the PR build passes. PR builds are never pushed or signed.
+- Changes that touch only `README.md`, `AGENTS.md` or `CLAUDE.md` skip the build,
+  on PRs and on `main`.
 - `build.yml` also runs daily at 10:05 UTC on the latest Silverblue 45 base, so a
   build can break without any repo change (upstream package or release changes).
 - Dependabot PRs for GitHub Actions auto-merge on minor/patch once the build passes.
