@@ -61,6 +61,7 @@ The base is `quay.io/fedora/fedora-silverblue:45`, tracked by tag rather than di
 | Zoom | zoom.us RPM |
 | tflint | GitHub release zip |
 | goat (Bluesky atproto CLI) | GitHub release, checksum checked |
+| OpenCode (terminal UI + desktop) | opencode.ai update API, SHA256 checked |
 | AWS CLI v2 | AWS installer zip |
 | aws-cdk, dnspython, virtualenv | npm / pip into `/usr` |
 
