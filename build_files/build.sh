@@ -335,59 +335,76 @@ ENTE_URL=$(gh_latest_release ente/photos-desktop \
 dnf5 install -y --nogpgcheck --setopt=tsflags=noscripts "${ENTE_URL}"
 
 ### OpenCode - AI coding agent, both the terminal UI (`opencode`) and the
-### Electron desktop app, from the same GitHub release. The release API
-### lists a sha256 digest for every asset, which each download is checked
-### against below. That digest comes from GitHub, the same origin as the
-### file, so like the Proton checksums it only catches a corrupted
-### download.
-OPENCODE_RELEASE=$(gh_latest_release anomalyco/opencode)
-opencode_asset() {
-    python3 -I -c '
+### Electron desktop app, at whatever version upstream's update API
+### reports as latest (opencode.ai/update/api/latest/{cli,desktop}/opencode,
+### the channel the docs' download links go through). gh_latest_release
+### can't be used here: GitHub's /releases/latest marker has stayed on the
+### 1.x line (verified 2026-11-25: it returns v1.19.6 with v2.4.2 already
+### published), and the repo also publishes non-product releases
+### (process-daemon-*, pr-*) that list endpoints would return. The update
+### API tracks upstream's current major line, so a future 3.x will be
+### picked up here without a change. Each manifest lists a sha256 per
+### file, checked below; like the Proton checksums it comes from the same
+### origin as the files, so it only catches a corrupted download.
+opencode_file() {
+    # $1 = manifest name (cli|desktop), $2 = asset; prints url sha256 version
+    curl -fsSL --retry 3 --retry-all-errors "https://opencode.ai/update/api/latest/$1/opencode" \
+        | python3 -I -c '
 import json, sys
-name = sys.argv[1]
-assets = [a for a in json.load(sys.stdin)["assets"] if a["name"] == name]
-if not assets or not (assets[0].get("digest") or "").startswith("sha256:"):
-    sys.exit("OpenCode: no " + name + " asset with a sha256 digest in the latest release")
-print(assets[0]["browser_download_url"], assets[0]["digest"].removeprefix("sha256:"))' "$1" <<< "${OPENCODE_RELEASE}"
+manifest = json.load(sys.stdin)
+entry = manifest["metadata"]["files"].get(sys.argv[1])
+if not entry or not entry.get("sha256") or not entry.get("url"):
+    sys.exit("OpenCode: no " + sys.argv[1] + " with a url and sha256 in the latest " + manifest.get("version", "?") + " manifest")
+print(entry["url"], entry["sha256"], manifest["version"])' "$2"
 }
+
+# The CLI and desktop are two separate manifests; require them to agree so
+# both installs always come from the same release (the old single-release
+# GitHub lookup got that for free). Upstream flipping only one of them
+# fails the build loudly instead of shipping a mismatched pair.
+OPENCODE_DESKTOP=$(opencode_file desktop opencode-desktop-linux-x86_64.rpm)
+read -r OPENCODE_DESKTOP_URL OPENCODE_DESKTOP_SHA256 OPENCODE_DESKTOP_VERSION <<< "${OPENCODE_DESKTOP}"
+OPENCODE_CLI=$(opencode_file cli opencode-linux-x64.tar.gz)
+read -r OPENCODE_CLI_URL OPENCODE_CLI_SHA256 OPENCODE_CLI_VERSION <<< "${OPENCODE_CLI}"
+if [[ "${OPENCODE_DESKTOP_VERSION}" != "${OPENCODE_CLI_VERSION}" ]]; then
+    echo "OpenCode: desktop manifest is ${OPENCODE_DESKTOP_VERSION} but cli manifest is ${OPENCODE_CLI_VERSION}" >&2
+    exit 1
+fi
 
 # Desktop app: an unsigned rpm that installs to /opt/OpenCode (fine here,
 # since the Containerfile makes /opt part of the image). Its %post does
-# update-alternatives for /usr/bin/ai.opencode.desktop, a user-namespace
-# probe (unshare) to pick the chrome-sandbox mode, desktop/mime cache
-# updates and an AppArmor profile install. The probe and alternatives
-# state (/var/lib/alternatives) don't fit a container build, so it gets
+# update-alternatives for /usr/bin/ai.opencode, a user-namespace probe
+# (unshare) to pick the chrome-sandbox mode, desktop/mime cache updates
+# and an AppArmor profile install. The probe and alternatives state
+# (/var/lib/alternatives) don't fit a container build, so it gets
 # noscripts like Libation/Zoom. chrome-sandbox already ships as 0755,
 # which is the right mode on Fedora (user namespaces on), and the
 # .desktop entries call /opt/OpenCode directly, so the only %post step
-# redone here is the /usr/bin symlink. The app's built-in updater can't
-# install over an image-based /usr or /opt; new releases arrive with the
-# nightly image build instead.
+# redone here is the /usr/bin symlink - 2.x renamed the launcher from
+# ai.opencode.desktop to ai.opencode, so the 1.x symlink target is gone.
+# The app's built-in updater can't install over an image-based /usr or
+# /opt; new releases arrive with the nightly image build instead. The
+# desktop bundles its own CLI copy (resources/opencode-cli, version-
+# matched by the guard above), so it doesn't depend on /usr/bin/opencode.
 #
-# The rpm also ships /usr/lib/.build-id/ symlinks (debuginfo lookup only)
-# for its bundled Electron binaries. Ente bundles the same Electron, so
-# both packages claim the same build-id path for chrome-sandbox and dnf5
-# aborts with a file conflict. %_netsharedpath makes rpm skip installing
-# (and conflict-checking) anything under that path for this one
-# transaction; the macro file is removed again straight after, so later
-# installs and on-laptop rpm-ostree layering are unaffected.
-OPENCODE_DESKTOP=$(opencode_asset opencode-desktop-linux-x86_64.rpm)
-read -r OPENCODE_DESKTOP_URL OPENCODE_DESKTOP_SHA256 <<< "${OPENCODE_DESKTOP}"
+# The 2.x rpm also no longer ships /usr/lib/.build-id/ symlinks (21
+# entries in v1.19.6, 0 in v2.4.2), so the %_netsharedpath workaround the
+# 1.x rpm needed against Ente's identical Electron chrome-sandbox is gone.
 curl -fsSL --retry 3 --retry-all-errors -o /tmp/opencode-desktop.rpm "${OPENCODE_DESKTOP_URL}"
 echo "${OPENCODE_DESKTOP_SHA256}  /tmp/opencode-desktop.rpm" | sha256sum --check -
-echo '%_netsharedpath /usr/lib/.build-id' > /etc/rpm/macros.laptop-image-skip-build-id
 dnf5 install -y --nogpgcheck --setopt=tsflags=noscripts /tmp/opencode-desktop.rpm
-rm /etc/rpm/macros.laptop-image-skip-build-id
-ln -sf /opt/OpenCode/ai.opencode.desktop /usr/bin/ai.opencode.desktop
+ln -sf /opt/OpenCode/ai.opencode /usr/bin/ai.opencode
 rm /tmp/opencode-desktop.rpm
 
 # Terminal UI: a single Bun-compiled binary in a tarball, installed to
 # /usr/bin like proton-drive. The default x64 build needs AVX2, which this
 # laptop (12th Gen Intel) has. The CLI's self-update is turned off with
 # OPENCODE_DISABLE_AUTOUPDATE (system_files/usr/lib/environment.d/), so
-# the image controls which version is installed.
-OPENCODE_CLI=$(opencode_asset opencode-linux-x64.tar.gz)
-read -r OPENCODE_CLI_URL OPENCODE_CLI_SHA256 <<< "${OPENCODE_CLI}"
+# the image controls which version is installed; 2.x still honors the
+# variable (checked against the v2.4.2 binary). The 2.x CLI embeds the
+# opencode-pty daemon and self-extracts it, checksum-verified, into
+# $XDG_STATE_HOME/opencode/pty on first use, so no extra component needs
+# installing here.
 curl -fsSL --retry 3 --retry-all-errors -o /tmp/opencode-linux-x64.tar.gz "${OPENCODE_CLI_URL}"
 echo "${OPENCODE_CLI_SHA256}  /tmp/opencode-linux-x64.tar.gz" | sha256sum --check -
 tar -xzf /tmp/opencode-linux-x64.tar.gz -C /tmp opencode
