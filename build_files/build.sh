@@ -88,6 +88,7 @@ dnf5 install -y --skip-unavailable \
     '@development-tools' \
     python3-pip \
     python3-psutil \
+    python3-reportlab \
     code \
     gimp \
     1password \
