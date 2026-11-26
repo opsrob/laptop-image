@@ -47,7 +47,7 @@ The base is `quay.io/fedora/fedora-silverblue:45`, tracked by tag rather than di
 
 **Third-party repos:** VS Code, 1Password, HashiCorp, Google Chrome (plain `.repo` files in `system_files/`), ProtonVPN (release RPM), OpenTofu (official install script) and the `scottames/ghostty` COPR.
 
-**Packages:** development tools, Python, Go, Node 24, Java 25, VS Code, Terraform/OpenTofu, `gh`, chezmoi, age, Ghostty, Chrome, 1Password, Thunderbird, GIMP, Inkscape, Audacity, VLC, qBittorrent, GNOME Boxes, ProtonVPN, `fuse-libs` (libfuse2, so AppImages run), and hardware diagnostics (`lm_sensors`, `powertop`, `smartmontools`, `inxi`, `hwinfo`, …).
+**Packages:** development tools, Python (with ReportLab for PDF generation), Go, Node 24, Java 25, VS Code, Terraform/OpenTofu, `gh`, chezmoi, age, Ghostty, Chrome, 1Password, Thunderbird, GIMP, Inkscape, Audacity, VLC, qBittorrent, GNOME Boxes, ProtonVPN, `fuse-libs` (libfuse2, so AppImages run), and hardware diagnostics (`lm_sensors`, `powertop`, `smartmontools`, `inxi`, `hwinfo`, …).
 
 **Vendor releases, always the latest at build time:**
 
